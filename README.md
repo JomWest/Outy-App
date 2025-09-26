@@ -12,90 +12,37 @@
 
 ---
 
-## 🎯 Descripción del Proyecto
+🎯 Descripción del Proyecto
+El mercado laboral en Nicaragua a menudo se encuentra fragmentado en diversas plataformas y redes sociales. Outy nace como una solución moderna y centralizada para abordar este desafío. La plataforma ofrece herramientas especializadas tanto para candidatos que buscan activamente empleo, como para empresas y reclutadores que necesitan encontrar al profesional ideal.
 
-El mercado laboral en Nicaragua a menudo se encuentra fragmentado en diversas plataformas y redes sociales. **Outy** nace como una solución moderna y centralizada para abordar este desafío. La plataforma ofrece herramientas especializadas tanto para **candidatos** que buscan activamente empleo, como para **empresas y reclutadores** que necesitan encontrar al profesional ideal.
+Para Candidatos: Permite crear un perfil profesional completo, subir su CV, detallar su experiencia y educación, y postularse a ofertas de manera sencilla.
 
-- **Para Candidatos:** Permite crear un perfil profesional completo, subir su CV, detallar su experiencia y educación, y postularse a ofertas de manera sencilla.
-- **Para Empleadores:** Ofrece un portal para publicar y gestionar ofertas de trabajo, buscar perfiles de candidatos, y comunicarse directamente con los postulantes.
+Para Empleadores: Ofrece un portal para publicar y gestionar ofertas de trabajo, buscar perfiles de candidatos, y comunicarse directamente con los postulantes.
 
----
+✨ Características Principales
+Doble Rol de Usuario: Registro diferenciado para Candidatos y Empleadores.
 
-## ✨ Características Principales
+Perfiles Profesionales:
 
-- **Doble Rol de Usuario:** Registro diferenciado para `Candidatos` y `Empleadores`.
-- **Perfiles Profesionales:**
-    - Los candidatos pueden construir un currículum en línea detallando experiencia laboral, educación y habilidades.
-    - Las empresas pueden crear un perfil público con su descripción, industria y logo.
-- **Publicación de Empleos:** Los empleadores pueden crear, editar y gestionar sus ofertas de trabajo.
-- **Sistema de Postulación:** Los candidatos pueden postularse a las ofertas con un solo clic, adjuntando opcionalmente una carta de presentación.
-- **Chat en Tiempo Real:** Módulo de mensajería directa para facilitar la comunicación entre empleadores y candidatos sobre una postulación.
-- **Sistema de Reseñas:** Después de un proceso de selección, ambas partes pueden dejar una reseña y una calificación, fomentando la transparencia.
-- **Búsqueda y Filtros:** Búsqueda de empleos por categoría, ubicación (departamento/municipio de Nicaragua), tipo de contrato y más.
+Los candidatos pueden construir un currículum en línea detallando experiencia laboral, educación y habilidades.
 
----
+Las empresas pueden crear un perfil público con su descripción, industria y logo.
 
+Publicación de Empleos: Los empleadores pueden crear, editar y gestionar sus ofertas de trabajo.
 
+Sistema de Postulación: Los candidatos pueden postularse a las ofertas con un solo clic, adjuntando opcionalmente una carta de presentación.
 
-## 🗄️ Diseño de la Base de Datos
+Chat en Tiempo Real: Módulo de mensajería directa para facilitar la comunicación entre empleadores y candidatos sobre una postulación.
 
-La base de datos es el núcleo de la aplicación. Está diseñada de manera relacional y normalizada para garantizar la integridad y escalabilidad de los datos.
+Sistema de Reseñas: Después de un proceso de selección, ambas partes pueden dejar una reseña y una calificación, fomentando la transparencia.
 
-El script completo de la base de datos se encuentra en: `database/schema.sql`
+Búsqueda y Filtros: Búsqueda de empleos por categoría, ubicación (departamento/municipio de Nicaragua), tipo de contrato y más.
 
-A continuación, un diagrama de Entidad-Relación simplificado de las tablas principales:
+🏗️ Arquitectura del Sistema
+El sistema sigue una arquitectura de tres capas clásica, separando la presentación, la lógica de negocio y el almacenamiento de datos para mayor escalabilidad y mantenibilidad.
 
-```mermaid
-erDiagram
-    users {
-        UNIQUEIDENTIFIER id PK
-        string email
-        string password_hash
-        string role
-    }
+Code snippet
 
-    company_profiles {
-        UNIQUEIDENTIFIER user_id PK, FK
-        string company_name
-        string description
-    }
-
-    candidate_profiles {
-        UNIQUEIDENTIFIER user_id PK, FK
-        string full_name
-        string professional_title
-    }
-
-    jobs {
-        UNIQUEIDENTIFIER id PK
-        UNIQUEIDENTIFIER company_id FK
-        string title
-        string description
-    }
-
-    job_applications {
-        UNIQUEIDENTIFIER id PK
-        UNIQUEIDENTIFIER job_id FK
-        UNIQUEIDENTIFIER candidate_id FK
-        string status
-    }
-
-    reviews {
-        UNIQUEIDENTIFIER id PK
-        UNIQUEIDENTIFIER job_application_id FK
-        int rating
-        string comment
-    }
-
-    users ||--o{ company_profiles : "es un"
-    users ||--o{ candidate_profiles : "es un"
-    company_profiles ||--|{ jobs : "publica"
-    candidate_profiles ||--|{ job_applications : "realiza"
-    jobs ||--|{ job_applications : "recibe"
-    job_applications ||--o{ reviews : "genera"
-
-
-----------
 graph TD
     subgraph "Usuarios de Outy"
         A[👤 Candidato]
@@ -124,3 +71,50 @@ graph TD
     style C fill:#E8F5E9,stroke:#4CAF50,stroke-width:2px;
     style D fill:#FFF3CD,stroke:#8A6D3B,stroke-width:2px;
     style E fill:#F2DEDE,stroke:#A94442,stroke-width:2px;
+🗄️ Diseño de la Base de Datos
+La base de datos es el núcleo de la aplicación. Está diseñada de manera relacional para garantizar la integridad de los datos. El script completo se encuentra en database/schema.sql.
+
+Code snippet
+
+erDiagram
+    users {
+        UNIQUEIDENTIFIER id PK
+        string email
+        string password_hash
+        string role
+    }
+    company_profiles {
+        UNIQUEIDENTIFIER user_id PK, FK
+        string company_name
+        string description
+    }
+    candidate_profiles {
+        UNIQUEIDENTIFIER user_id PK, FK
+        string full_name
+        string professional_title
+    }
+    jobs {
+        UNIQUEIDENTIFIER id PK
+        UNIQUEIDENTIFIER company_id FK
+        string title
+        string description
+    }
+    job_applications {
+        UNIQUEIDENTIFIER id PK
+        UNIQUEIDENTIFIER job_id FK
+        UNIQUEIDENTIFIER candidate_id FK
+        string status
+    }
+    reviews {
+        UNIQUEIDENTIFIER id PK
+        UNIQUEIDENTIFIER job_application_id FK
+        int rating
+        string comment
+    }
+
+    users ||--o{ company_profiles : "es un"
+    users ||--o{ candidate_profiles : "es un"
+    company_profiles ||--|{ jobs : "publica"
+    candidate_profiles ||--|{ job_applications : "realiza"
+    jobs ||--|{ job_applications : "recibe"
+    job_applications ||--o{ reviews : "genera"
