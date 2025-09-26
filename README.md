@@ -93,3 +93,34 @@ erDiagram
     candidate_profiles ||--|{ job_applications : "realiza"
     jobs ||--|{ job_applications : "recibe"
     job_applications ||--o{ reviews : "genera"
+
+
+----------
+graph TD
+    subgraph "Usuarios de Outy"
+        A[👤 Candidato]
+        B[🏢 Empleador]
+    end
+
+    subgraph "Capa de Presentación (Frontend)"
+        C(🌐 Web / App Móvil)
+    end
+
+    subgraph "Capa de Lógica (Backend API)"
+        D(⚙️ API / Lógica del negocio)
+    end
+
+    subgraph "Capa de Datos"
+        E(🗄️ SQL Server Database)
+    end
+
+    A -- Accede a --> C
+    B -- Accede a --> C
+    C <--> D
+    D <--> E
+
+    style A fill:#D9EDF7,stroke:#31708F,stroke-width:2px;
+    style B fill:#D9EDF7,stroke:#31708F,stroke-width:2px;
+    style C fill:#E8F5E9,stroke:#4CAF50,stroke-width:2px;
+    style D fill:#FFF3CD,stroke:#8A6D3B,stroke-width:2px;
+    style E fill:#F2DEDE,stroke:#A94442,stroke-width:2px;
