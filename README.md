@@ -14,10 +14,7 @@
 2. [✨ Características Principales](#-características-principales)
 3. [🛠️ Tecnologías Utilizadas](#-tecnologías-utilizadas)
 4. [🗄️ Diseño de la Base de Datos](#-diseño-de-la-base-de-datos)
-5. [🚀 Instalación y Puesta en Marcha](#-instalación-y-puesta-en-marcha)
-6. [🤝 Cómo Contribuir](#-cómo-contribuir)
-7. [🗺️ Roadmap (Futuras Mejoras)](#-roadmap-futuras-mejoras)
-8. [📄 Licencia](#-licencia)
+5. [📄 Licencia](#-licencia)
 
 ---
 
