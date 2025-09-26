@@ -9,15 +9,6 @@
 
 ---
 
-## 📋 Tabla de Contenidos
-1. [Descripción del Proyecto](#-descripción-del-proyecto)
-2. [✨ Características Principales](#-características-principales)
-3. [🛠️ Tecnologías Utilizadas](#-tecnologías-utilizadas)
-4. [🗄️ Diseño de la Base de Datos](#-diseño-de-la-base-de-datos)
-5. [🚀 Instalación y Puesta en Marcha](#-instalación-y-puesta-en-marcha)
-6. [🤝 Cómo Contribuir](#-cómo-contribuir)
-7. [🗺️ Roadmap (Futuras Mejoras)](#-roadmap-futuras-mejoras)
-8. [📄 Licencia](#-licencia)
 
 ---
 
@@ -44,23 +35,7 @@ El mercado laboral en Nicaragua a menudo se encuentra fragmentado en diversas pl
 
 ---
 
-## 🛠️ Tecnologías Utilizadas
 
-Este proyecto está diseñado para ser flexible, pero la estructura base recomendada es:
-
-- **Base de Datos:** `Microsoft SQL Server`
-- **Backend (Sugerido):**
-    - `ASP.NET Core`: Para una integración nativa con SQL Server y un alto rendimiento.
-    - `Node.js` con `Express` y `Prisma` o `TypeORM`: Para un desarrollo rápido y flexible.
-- **Frontend (Sugerido):**
-    - `React` o `Next.js`: Para una interfaz de usuario dinámica y moderna.
-    - `Angular`: Para una solución empresarial robusta.
-    - `Vue.js`: Para una curva de aprendizaje más suave y gran flexibilidad.
-- **Comunicación en Tiempo Real (Chat):**
-    - `SignalR` (si se usa .NET)
-    - `Socket.IO` (si se usa Node.js)
-
----
 
 ## 🗄️ Diseño de la Base de Datos
 
