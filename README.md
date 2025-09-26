@@ -17,8 +17,6 @@
 2. [Características Principales](#-características-principales)
 3. [Tecnologías Utilizadas](#️-tecnologías-utilizadas)
 4. [Arquitectura del Sistema](#️-arquitectura-del-sistema)
-5. [Diseño de la Base de Datos](#-diseño-de-la-base-de-datos)
-6. [Licencia](#-licencia)
 
 ---
 
