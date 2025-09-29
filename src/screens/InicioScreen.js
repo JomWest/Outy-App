@@ -20,7 +20,7 @@ export default function InicioScreen({ navigation }) {
 
         <TouchableOpacity
           style={{ backgroundColor: colors.card, paddingVertical: 14, borderRadius: radius.md, marginTop: spacing.sm }}
-          onPress={() => {}}
+          onPress={() => navigation.navigate('CrearCuenta')}
         >
           <Text style={{ textAlign: 'center', color: '#111', fontSize: 16, fontWeight: '600' }}>Crear Cuenta</Text>
         </TouchableOpacity>

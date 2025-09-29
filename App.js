@@ -8,6 +8,9 @@ import { AuthProvider, useAuth } from './src/context/AuthContext';
 import InicioScreen from './src/screens/InicioScreen';
 import LoginScreen from './src/screens/LoginScreen';
 import BienvenidaScreen from './src/screens/BienvenidaScreen';
+import CrearCuentaScreen from './src/screens/CrearCuentaScreen';
+import RecuperarContrasenaScreen from './src/screens/RecuperarContrasenaScreen';
+import VerificarEmailScreen from './src/screens/VerificarEmailScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -27,6 +30,9 @@ function AppNavigator() {
           <>
             <Stack.Screen name="Inicio" component={InicioScreen} />
             <Stack.Screen name="Login" component={LoginScreen} />
+            <Stack.Screen name="CrearCuenta" component={CrearCuentaScreen} />
+            <Stack.Screen name="RecuperarContrasena" component={RecuperarContrasenaScreen} />
+            <Stack.Screen name="VerificarEmail" component={VerificarEmailScreen} />
           </>
         )}
       </Stack.Navigator>
@@ -38,7 +44,7 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <AuthProvider>
-        <StatusBar style="dark" />
+        <StatusBar style="light" />
         <AppNavigator />
       </AuthProvider>
     </SafeAreaProvider>

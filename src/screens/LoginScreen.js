@@ -82,7 +82,7 @@ export default function LoginScreen({ navigation }) {
             <View style={{ width: 18, height: 18, borderRadius: 4, borderWidth: 1, borderColor: colors.border, marginRight: 8, backgroundColor: remember ? colors.purpleEnd : 'transparent' }} />
             <Text style={{ color: colors.textSecondary }}>Recordar</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => {}}>
+          <TouchableOpacity onPress={() => navigation.navigate('RecuperarContrasena')}>
             <Text style={{ color: colors.link }}>Recuperar Contraseña</Text>
           </TouchableOpacity>
         </View>
