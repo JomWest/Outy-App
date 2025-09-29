@@ -1,6 +1,6 @@
 # Outy - Bolsa de Trabajo para Nicaragua
 
-![Logo de Outy](assets/outy_logo.png)
+![Logo de Outy](assets/outy_logo(1).png)
 
 **Outy** es una plataforma de código abierto diseñada para conectar a profesionales y empresas en Nicaragua. Su objetivo es centralizar y simplificar el proceso de búsqueda y publicación de empleos en el país, creando un puente directo entre el talento local y las oportunidades laborales.
 
