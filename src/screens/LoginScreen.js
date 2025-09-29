@@ -24,7 +24,7 @@ export default function LoginScreen({ navigation }) {
     setLoading(true);
     try {
       await login(email.trim(), password);
-      navigation.reset({ index: 0, routes: [{ name: 'Bienvenida' }] });
+      // No usar navigation.reset aquí, el AuthProvider manejará la navegación automáticamente
     } catch (e) {
       setError(e.message || 'Error al iniciar sesión');
     } finally {

@@ -8,6 +8,9 @@ import { AuthProvider, useAuth } from './src/context/AuthContext';
 import InicioScreen from './src/screens/InicioScreen';
 import LoginScreen from './src/screens/LoginScreen';
 import BienvenidaScreen from './src/screens/BienvenidaScreen';
+import HomeScreen from './src/screens/HomeScreen';
+import ChatsScreen from './src/screens/ChatsScreen';
+import ChatScreen from './src/screens/ChatScreen';
 import CrearCuentaScreen from './src/screens/CrearCuentaScreen';
 import RecuperarContrasenaScreen from './src/screens/RecuperarContrasenaScreen';
 import VerificarEmailScreen from './src/screens/VerificarEmailScreen';
@@ -15,9 +18,9 @@ import VerificarEmailScreen from './src/screens/VerificarEmailScreen';
 const Stack = createNativeStackNavigator();
 
 function AppNavigator() {
-  const { initialized, isAuthenticated } = useAuth();
+  const { loading, isAuthenticated } = useAuth();
 
-  if (!initialized) {
+  if (loading) {
     return <View style={{ flex: 1, backgroundColor: '#fff' }} />;
   }
 
@@ -25,7 +28,12 @@ function AppNavigator() {
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {isAuthenticated ? (
-          <Stack.Screen name="Bienvenida" component={BienvenidaScreen} />
+          <>
+            <Stack.Screen name="Home" component={HomeScreen} />
+            <Stack.Screen name="Chats" component={ChatsScreen} />
+            <Stack.Screen name="Chat" component={ChatScreen} />
+            <Stack.Screen name="Bienvenida" component={BienvenidaScreen} />
+          </>
         ) : (
           <>
             <Stack.Screen name="Inicio" component={InicioScreen} />
