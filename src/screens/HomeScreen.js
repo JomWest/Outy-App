@@ -28,7 +28,7 @@ export default function HomeScreen({ navigation }) {
       subtitle: 'Encuentra oportunidades',
       icon: 'briefcase',
       color: '#10B981',
-      onPress: () => {}
+      onPress: () => navigation.navigate('Jobs')
     },
     {
       id: 'profile',
@@ -36,7 +36,7 @@ export default function HomeScreen({ navigation }) {
       subtitle: 'Gestiona tu información',
       icon: 'person',
       color: '#F59E0B',
-      onPress: () => {}
+      onPress: () => navigation.navigate('Profile')
     },
     {
       id: 'notifications',
@@ -107,16 +107,29 @@ export default function HomeScreen({ navigation }) {
             </Text>
           </View>
           
-          <TouchableOpacity
-            onPress={onLogout}
-            style={{
-              backgroundColor: 'rgba(255,255,255,0.2)',
-              padding: 12,
-              borderRadius: radius.md
-            }}
-          >
-            <Ionicons name="log-out-outline" size={24} color="white" />
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', gap: 12 }}>
+            <TouchableOpacity
+              onPress={() => navigation.navigate('Profile')}
+              style={{
+                backgroundColor: 'rgba(255,255,255,0.2)',
+                padding: 12,
+                borderRadius: radius.md
+              }}
+            >
+              <Ionicons name="person-outline" size={24} color="white" />
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              onPress={onLogout}
+              style={{
+                backgroundColor: 'rgba(255,255,255,0.2)',
+                padding: 12,
+                borderRadius: radius.md
+              }}
+            >
+              <Ionicons name="log-out-outline" size={24} color="white" />
+            </TouchableOpacity>
+          </View>
         </View>
       </LinearGradient>
 
@@ -324,7 +337,10 @@ export default function HomeScreen({ navigation }) {
             </Text>
           </TouchableOpacity>
           
-          <TouchableOpacity style={{ alignItems: 'center' }}>
+          <TouchableOpacity 
+            style={{ alignItems: 'center' }}
+            onPress={() => navigation.navigate('Profile')}
+          >
             <Ionicons name="person-outline" size={24} color="#9CA3AF" />
             <Text style={{ fontSize: 12, color: '#9CA3AF', marginTop: 4 }}>
               Perfil

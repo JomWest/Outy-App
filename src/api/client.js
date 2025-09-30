@@ -73,6 +73,13 @@ export const api = {
     token
   }),
   
+  // Name validation endpoint
+  validateCandidateName: (fullName, excludeUserId, token) => request('/api/candidate_profiles/validate/name', {
+    method: 'POST',
+    body: { full_name: fullName, exclude_user_id: excludeUserId },
+    token
+  }),
+  
   // User update endpoint
   updateUser: (userId, userData, token) => request(`/api/users/${userId}`, {
     method: 'PUT',
@@ -82,7 +89,7 @@ export const api = {
 
   // File upload endpoint
   uploadFile: async (formData, token) => {
-    const response = await fetch(`${BASE_URL}/api/files/upload`, {
+    const response = await fetch(`${API_URL}/api/files/upload`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -97,5 +104,107 @@ export const api = {
     }
 
     return response.json();
+  },
+
+  // File upload to database as BLOB
+  uploadFileToDatabase: async (formData, token, type) => {
+    try {
+      console.log('Uploading file to database:', { type, hasToken: !!token });
+      
+      if (!token) {
+        throw new Error('Token de autenticación requerido');
+      }
+
+      const response = await fetch(`${API_URL}/api/files-blob/upload?type=${type}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          // Don't set Content-Type for FormData - let the browser set it with boundary
+        },
+        body: formData,
+      });
+
+      console.log('Upload response status:', response.status);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Upload error response:', errorText);
+        
+        let errorMessage = 'Error al subir el archivo';
+        try {
+          const errorJson = JSON.parse(errorText);
+          errorMessage = errorJson.error || errorMessage;
+        } catch (e) {
+          // If not JSON, use the text as error message
+          errorMessage = errorText || errorMessage;
+        }
+        
+        throw new Error(errorMessage);
+      }
+
+      const result = await response.json();
+      console.log('Upload successful:', result);
+      return result;
+    } catch (error) {
+      console.error('Error in uploadFileToDatabase:', error);
+      throw error;
+    }
+  },
+
+  // Get file from database
+  getFileFromDatabase: async (userId, type, token) => {
+    try {
+      console.log('Getting file from database:', { userId, type, hasToken: !!token });
+      
+      let url = `${API_URL}/api/files-blob/${type}/${userId}`;
+      
+      // Add token as query parameter if available
+      if (token) {
+        url += `?token=${encodeURIComponent(token)}`;
+      }
+      
+      console.log('Fetching from URL:', url);
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Accept': 'image/*,application/*',
+          // Add Authorization header as well for extra security
+          ...(token && { 'Authorization': `Bearer ${token}` })
+        },
+      });
+
+      console.log('File fetch response status:', response.status);
+      
+      if (!response.ok) {
+        if (response.status === 404) {
+          console.log('File not found in database');
+          return null;
+        }
+        
+        const errorText = await response.text();
+        console.error('File fetch error response:', errorText);
+        
+        let errorMessage = 'Error al obtener el archivo';
+        try {
+          const errorJson = JSON.parse(errorText);
+          errorMessage = errorJson.error || errorMessage;
+        } catch (e) {
+          errorMessage = errorText || errorMessage;
+        }
+        
+        throw new Error(errorMessage);
+      }
+
+      // Return the blob URL for images
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      console.log('File retrieved successfully, blob URL created');
+      return blobUrl;
+      
+    } catch (error) {
+      console.error('Error in getFileFromDatabase:', error);
+      throw error;
+    }
   }
 };

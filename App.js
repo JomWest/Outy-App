@@ -11,6 +11,9 @@ import BienvenidaScreen from './src/screens/BienvenidaScreen';
 import HomeScreen from './src/screens/HomeScreen';
 import ChatsScreen from './src/screens/ChatsScreen';
 import ChatScreen from './src/screens/ChatScreen';
+import ProfileScreen from './src/screens/ProfileScreen';
+import JobsScreen from './src/screens/JobsScreen';
+import JobDetailScreen from './src/screens/JobDetailScreen';
 import CrearCuentaScreen from './src/screens/CrearCuentaScreen';
 import RecuperarContrasenaScreen from './src/screens/RecuperarContrasenaScreen';
 import VerificarEmailScreen from './src/screens/VerificarEmailScreen';
@@ -32,6 +35,9 @@ function AppNavigator() {
             <Stack.Screen name="Home" component={HomeScreen} />
             <Stack.Screen name="Chats" component={ChatsScreen} />
             <Stack.Screen name="Chat" component={ChatScreen} />
+            <Stack.Screen name="Profile" component={ProfileScreen} />
+            <Stack.Screen name="Jobs" component={JobsScreen} />
+            <Stack.Screen name="JobDetail" component={JobDetailScreen} />
             <Stack.Screen name="Bienvenida" component={BienvenidaScreen} />
           </>
         ) : (

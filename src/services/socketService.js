@@ -91,7 +91,7 @@ class SocketService {
   joinConversation(conversationId) {
     if (this.socket && this.socket.connected) {
       console.log(`Joining conversation: ${conversationId}`);
-      this.socket.emit('join_conversation', { conversationId });
+      this.socket.emit('join_conversation', conversationId);
     }
   }
 
@@ -99,7 +99,7 @@ class SocketService {
   leaveConversation(conversationId) {
     if (this.socket && this.socket.connected) {
       console.log(`Leaving conversation: ${conversationId}`);
-      this.socket.emit('leave_conversation', { conversationId });
+      this.socket.emit('leave_conversation', conversationId);
     }
   }
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, SafeAreaView, TextInput, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, SafeAreaView, TextInput, ActivityIndicator, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../context/AuthContext';
@@ -47,6 +47,7 @@ export default function ChatsScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [error, setError] = useState(null);
+  const [profileImages, setProfileImages] = useState({});
 
   useEffect(() => {
     loadConversations();
@@ -100,12 +101,42 @@ export default function ChatsScreen({ navigation }) {
       }));
       
       setConversations(processedConversations);
+      
+      // Load profile images for all users in conversations
+      loadProfileImages(processedConversations);
     } catch (error) {
       console.error('Error loading conversations:', error);
       setError('Error al cargar las conversaciones');
       setConversations([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadProfileImages = async (conversations) => {
+    const imagePromises = conversations.map(async (conv) => {
+      try {
+        // Check if user has profile image data
+        const profile = await api.getCandidateProfile(conv.other_user_id, token);
+        if (profile && profile.profile_picture_data) {
+          const imageUrl = api.getFileFromDatabase('profile_image', conv.other_user_id, token);
+          return { userId: conv.other_user_id, imageUrl };
+        }
+      } catch (error) {
+        console.log(`No profile image for user ${conv.other_user_id}`);
+      }
+      return { userId: conv.other_user_id, imageUrl: null };
+    });
+
+    try {
+      const results = await Promise.all(imagePromises);
+      const imageMap = {};
+      results.forEach(result => {
+        imageMap[result.userId] = result.imageUrl;
+      });
+      setProfileImages(imageMap);
+    } catch (error) {
+      console.error('Error loading profile images:', error);
     }
   };
 
@@ -116,6 +147,7 @@ export default function ChatsScreen({ navigation }) {
 
   const renderConversationItem = (conversation) => {
     const userTypeInfo = getUserTypeInfo(conversation.other_user_role);
+    const profileImageUrl = profileImages[conversation.other_user_id];
     
     return (
       <TouchableOpacity
@@ -147,15 +179,28 @@ export default function ChatsScreen({ navigation }) {
             alignItems: 'center',
             justifyContent: 'center',
             marginRight: 16,
-            position: 'relative'
+            position: 'relative',
+            overflow: 'hidden'
           }}>
-            <Text style={{
-              fontSize: 18,
-              fontWeight: 'bold',
-              color: 'white'
-            }}>
-              {getInitials(conversation.other_user_email)}
-            </Text>
+            {profileImageUrl ? (
+              <Image 
+                source={{ uri: profileImageUrl }}
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  borderRadius: 28
+                }}
+                resizeMode="cover"
+              />
+            ) : (
+              <Text style={{
+                fontSize: 18,
+                fontWeight: 'bold',
+                color: 'white'
+              }}>
+                {getInitials(conversation.other_user_email)}
+              </Text>
+            )}
             
             {/* Online indicator */}
             {conversation.isOnline && (
@@ -319,24 +364,41 @@ export default function ChatsScreen({ navigation }) {
             )}
           </View>
           
-          {totalUnreadCount > 0 && (
-            <View style={{
-              backgroundColor: 'rgba(255, 255, 255, 0.9)',
-              borderRadius: 12,
-              minWidth: 24,
-              height: 24,
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}>
-              <Text style={{
-                fontSize: 12,
-                color: colors.purpleStart,
-                fontWeight: 'bold'
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            {totalUnreadCount > 0 && (
+              <View style={{
+                backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                borderRadius: 12,
+                minWidth: 24,
+                height: 24,
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginRight: 12
               }}>
-                {totalUnreadCount > 99 ? '99+' : totalUnreadCount}
-              </Text>
-            </View>
-          )}
+                <Text style={{
+                  fontSize: 12,
+                  color: colors.purpleStart,
+                  fontWeight: 'bold'
+                }}>
+                  {totalUnreadCount > 99 ? '99+' : totalUnreadCount}
+                </Text>
+              </View>
+            )}
+            
+            <TouchableOpacity
+              onPress={() => navigation.navigate('Profile')}
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 20,
+                backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              <Ionicons name="person" size={20} color="white" />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Search Bar */}
