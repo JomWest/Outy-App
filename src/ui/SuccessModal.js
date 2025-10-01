@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors, radius } from '../theme';
 
-export default function SuccessModal({ visible, message, onNavigateToLogin }) {
+export default function SuccessModal({ visible, message, onNavigateToLogin, onClose, title }) {
   return (
     <Modal
       visible={visible}
@@ -48,7 +48,7 @@ export default function SuccessModal({ visible, message, onNavigateToLogin }) {
             textAlign: 'center',
             marginBottom: 12
           }}>
-            ¡Cuenta creada exitosamente!
+            {title || '¡Operación exitosa!'}
           </Text>
 
           <Text style={{
@@ -58,12 +58,12 @@ export default function SuccessModal({ visible, message, onNavigateToLogin }) {
             lineHeight: 22,
             marginBottom: 32
           }}>
-            {message || 'Tu cuenta ha sido creada correctamente. Ahora puedes iniciar sesión.'}
+            {message || 'La acción se ha completado correctamente.'}
           </Text>
 
-          {/* Action Button */}
+          {/* Action Button - Single Accept */}
           <TouchableOpacity 
-            onPress={onNavigateToLogin}
+            onPress={onClose || onNavigateToLogin}
             style={{ width: '100%' }}
             activeOpacity={0.9}
           >
@@ -82,7 +82,7 @@ export default function SuccessModal({ visible, message, onNavigateToLogin }) {
                 fontSize: 16,
                 fontWeight: '600'
               }}>
-                Ir a Iniciar Sesión
+                Aceptar
               </Text>
             </LinearGradient>
           </TouchableOpacity>

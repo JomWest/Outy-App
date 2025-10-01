@@ -77,6 +77,19 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Allow updating local user fields to reflect changes immediately
+  const updateUserLocal = async (partial) => {
+    try {
+      setUser(prev => {
+        const updated = { ...(prev || {}), ...(partial || {}) };
+        AsyncStorage.setItem('auth_user', JSON.stringify(updated));
+        return updated;
+      });
+    } catch (error) {
+      console.error('Error updating local user:', error);
+    }
+  };
+
   return (
     <AuthContext.Provider value={{
       user,
@@ -84,7 +97,8 @@ export const AuthProvider = ({ children }) => {
       isAuthenticated,
       loading,
       login,
-      logout
+      logout,
+      updateUserLocal
     }}>
       {children}
     </AuthContext.Provider>

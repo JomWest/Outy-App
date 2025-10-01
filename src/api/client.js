@@ -87,6 +87,9 @@ export const api = {
     token
   }),
 
+  // Locations (departamentos y municipios)
+  getLocationsNicaragua: (page = 1, pageSize = 500, token) => request(`/api/locations_nicaragua?page=${page}&pageSize=${pageSize}`, { token }),
+
   // File upload endpoint
   uploadFile: async (formData, token) => {
     const response = await fetch(`${API_URL}/api/files/upload`, {

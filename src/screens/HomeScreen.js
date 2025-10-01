@@ -1,12 +1,41 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, ScrollView, SafeAreaView } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, TouchableOpacity, ScrollView, SafeAreaView, Image, useWindowDimensions, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../context/AuthContext';
 import { colors, spacing, typography, radius } from '../theme';
+import { api } from '../api/client';
 
 export default function HomeScreen({ navigation }) {
-  const { user, logout } = useAuth();
+  const { user, token, logout } = useAuth();
+  const [avatarUrl, setAvatarUrl] = useState(null);
+  const { width } = useWindowDimensions();
+  const isSmall = width < 360;
+  const headerTitleSize = isSmall ? 22 : 24;
+  const subTitleSize = isSmall ? 14 : 16;
+  const numColumns = width < 360 ? 1 : 2;
+  const menuCardWidth = numColumns === 2 ? '48%' : '100%';
+  const avatarSize = isSmall ? 40 : 44;
+  // Helpers para mostrar nombre y rol con mejor formato
+  const toTitleCase = (str) => (str ? str.charAt(0).toUpperCase() + str.slice(1) : '');
+  const displayName = (user?.full_name?.trim()) || toTitleCase(user?.email?.split('@')[0]) || 'Usuario';
+  const roleMap = { admin: 'Admin', employee: 'Empleado', candidate: 'Candidato', company: 'Empresa' };
+  const roleLabel = roleMap[user?.role] || 'Usuario';
+
+  useEffect(() => {
+    let mounted = true;
+    const loadAvatar = async () => {
+      try {
+        if (!user?.id || !token) return;
+        const url = await api.getFileFromDatabase(user.id, 'profile_image', token);
+        if (mounted) setAvatarUrl(url || null);
+      } catch (e) {
+        console.log('Avatar load error', e?.message || e);
+      }
+    };
+    loadAvatar();
+    return () => { mounted = false; };
+  }, [user?.id, token, user?.profile_image_updated_at]);
 
   const onLogout = async () => {
     await logout();
@@ -82,7 +111,9 @@ export default function HomeScreen({ navigation }) {
         style={{
           paddingHorizontal: 24,
           paddingVertical: 20,
-          paddingTop: 40
+          paddingTop: Platform.OS === 'ios' ? 40 : 24,
+          borderBottomLeftRadius: 24,
+          borderBottomRightRadius: 24
         }}
       >
         <View style={{
@@ -90,31 +121,57 @@ export default function HomeScreen({ navigation }) {
           justifyContent: 'space-between',
           alignItems: 'center'
         }}>
-          <View>
-            <Text style={{
-              fontSize: 24,
-              fontWeight: 'bold',
-              color: 'white'
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <View style={{
+              width: avatarSize,
+              height: avatarSize,
+              borderRadius: avatarSize / 2,
+              backgroundColor: 'rgba(255,255,255,0.25)',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginRight: 12,
+              overflow: 'hidden',
+              borderWidth: 2,
+              borderColor: 'rgba(255,255,255,0.6)'
             }}>
-              ¡Hola, {user?.email?.split('@')[0]}!
-            </Text>
-            <Text style={{
-              fontSize: 16,
-              color: 'rgba(255,255,255,0.8)',
-              marginTop: 4
-            }}>
-              {user?.role === 'employee' ? 'Empleado' : 'Candidato'} • Bienvenido a OUTY
-            </Text>
+              {avatarUrl ? (
+                <Image source={{ uri: avatarUrl }} style={{ width: avatarSize, height: avatarSize, borderRadius: avatarSize / 2 }} />
+              ) : (
+                <Ionicons name="person" size={isSmall ? 20 : 22} color="white" />
+              )}
+            </View>
+            <View style={{ maxWidth: width - 160 }}>
+              <Text style={{
+                fontSize: headerTitleSize,
+                fontWeight: 'bold',
+                color: 'white'
+              }} numberOfLines={1}>
+                ¡Hola, {displayName}!
+              </Text>
+              <Text style={{
+                fontSize: subTitleSize,
+                color: 'rgba(255,255,255,0.85)',
+                marginTop: 4
+              }}>
+                {roleLabel} • Bienvenido a OUTY
+              </Text>
+            </View>
           </View>
           
-          <View style={{ flexDirection: 'row', gap: 12 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             <TouchableOpacity
               onPress={() => navigation.navigate('Profile')}
               style={{
-                backgroundColor: 'rgba(255,255,255,0.2)',
-                padding: 12,
-                borderRadius: radius.md
+                width: 44,
+                height: 44,
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: 'rgba(255,255,255,0.18)',
+                borderRadius: radius.md,
+                borderWidth: 1,
+                borderColor: 'rgba(255,255,255,0.35)'
               }}
+              activeOpacity={0.8}
             >
               <Ionicons name="person-outline" size={24} color="white" />
             </TouchableOpacity>
@@ -122,10 +179,17 @@ export default function HomeScreen({ navigation }) {
             <TouchableOpacity
               onPress={onLogout}
               style={{
-                backgroundColor: 'rgba(255,255,255,0.2)',
-                padding: 12,
-                borderRadius: radius.md
+                width: 44,
+                height: 44,
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: 'rgba(255,255,255,0.18)',
+                borderRadius: radius.md,
+                borderWidth: 1,
+                borderColor: 'rgba(255,255,255,0.35)',
+                marginLeft: 12
               }}
+              activeOpacity={0.8}
             >
               <Ionicons name="log-out-outline" size={24} color="white" />
             </TouchableOpacity>
@@ -152,7 +216,7 @@ export default function HomeScreen({ navigation }) {
           <View style={{
             flexDirection: 'row',
             flexWrap: 'wrap',
-            justifyContent: 'space-between'
+            justifyContent: numColumns === 2 ? 'space-between' : 'flex-start'
           }}>
             {menuItems.map((item) => (
               <TouchableOpacity
@@ -162,15 +226,17 @@ export default function HomeScreen({ navigation }) {
                   backgroundColor: 'white',
                   borderRadius: radius.lg,
                   padding: 20,
-                  width: '48%',
+                  width: menuCardWidth,
                   marginBottom: 16,
                   shadowColor: '#000',
                   shadowOffset: { width: 0, height: 2 },
-                  shadowOpacity: 0.1,
+                  shadowOpacity: 0.08,
                   shadowRadius: 8,
-                  elevation: 3
+                  elevation: 3,
+                  borderWidth: Platform.OS === 'web' ? 1 : 0,
+                  borderColor: '#EEF2FF'
                 }}
-                activeOpacity={0.7}
+                activeOpacity={0.8}
               >
                 <View style={{
                   width: 48,
@@ -221,7 +287,7 @@ export default function HomeScreen({ navigation }) {
               Trabajos Recientes
             </Text>
             
-            <TouchableOpacity>
+            <TouchableOpacity activeOpacity={0.8}>
               <Text style={{
                 fontSize: 14,
                 color: colors.purpleStart,
@@ -242,11 +308,13 @@ export default function HomeScreen({ navigation }) {
                 marginBottom: 12,
                 shadowColor: '#000',
                 shadowOffset: { width: 0, height: 1 },
-                shadowOpacity: 0.05,
+                shadowOpacity: 0.06,
                 shadowRadius: 4,
-                elevation: 2
+                elevation: 2,
+                borderWidth: Platform.OS === 'web' ? 1 : 0,
+                borderColor: '#EEF2FF'
               }}
-              activeOpacity={0.7}
+              activeOpacity={0.8}
             >
               <View style={{
                 flexDirection: 'row',
@@ -304,7 +372,7 @@ export default function HomeScreen({ navigation }) {
         backgroundColor: 'white',
         paddingHorizontal: 24,
         paddingVertical: 16,
-        paddingBottom: 32,
+        paddingBottom: Platform.OS === 'ios' ? 32 : 20,
         borderTopWidth: 1,
         borderTopColor: '#E5E7EB'
       }}>
@@ -313,7 +381,7 @@ export default function HomeScreen({ navigation }) {
           justifyContent: 'space-around',
           alignItems: 'center'
         }}>
-          <TouchableOpacity style={{ alignItems: 'center' }}>
+          <TouchableOpacity style={{ alignItems: 'center' }} activeOpacity={0.8}>
             <Ionicons name="home" size={24} color={colors.purpleStart} />
             <Text style={{ fontSize: 12, color: colors.purpleStart, marginTop: 4, fontWeight: '500' }}>
               Inicio
@@ -323,6 +391,7 @@ export default function HomeScreen({ navigation }) {
           <TouchableOpacity 
             style={{ alignItems: 'center' }}
             onPress={() => navigation.navigate('Chats')}
+            activeOpacity={0.8}
           >
             <Ionicons name="chatbubbles-outline" size={24} color="#9CA3AF" />
             <Text style={{ fontSize: 12, color: '#9CA3AF', marginTop: 4 }}>
@@ -330,7 +399,7 @@ export default function HomeScreen({ navigation }) {
             </Text>
           </TouchableOpacity>
           
-          <TouchableOpacity style={{ alignItems: 'center' }}>
+          <TouchableOpacity style={{ alignItems: 'center' }} activeOpacity={0.8}>
             <Ionicons name="briefcase-outline" size={24} color="#9CA3AF" />
             <Text style={{ fontSize: 12, color: '#9CA3AF', marginTop: 4 }}>
               Trabajos
@@ -340,6 +409,7 @@ export default function HomeScreen({ navigation }) {
           <TouchableOpacity 
             style={{ alignItems: 'center' }}
             onPress={() => navigation.navigate('Profile')}
+            activeOpacity={0.8}
           >
             <Ionicons name="person-outline" size={24} color="#9CA3AF" />
             <Text style={{ fontSize: 12, color: '#9CA3AF', marginTop: 4 }}>

@@ -10,7 +10,8 @@ import {
   ActivityIndicator,
   Image,
   Platform,
-  Animated
+  Animated,
+  Modal
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -24,13 +25,14 @@ import SuccessModal from '../ui/SuccessModal';
 import ErrorModal from '../ui/ErrorModal';
 
 export default function ProfileScreen({ navigation }) {
-  const { user, token } = useAuth();
+  const { user, token, updateUserLocal } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [fadeAnim] = useState(new Animated.Value(0));
+  const [showImageModal, setShowImageModal] = useState(false);
 
   // Profile data state
   const [profileData, setProfileData] = useState({
@@ -211,6 +213,14 @@ export default function ProfileScreen({ navigation }) {
         await api.updateUser(user.id, { phone_number: profileData.phone_number }, token);
       }
 
+      // Update global user context so changes reflect instantly across app
+      await updateUserLocal({
+        full_name: profileData.full_name,
+        phone_number: profileData.phone_number,
+        // bump version to prompt reloading avatar where applicable
+        profile_image_updated_at: Date.now()
+      });
+
       setShowSuccessModal(true);
       
       // Clear selected files after successful upload
@@ -317,6 +327,34 @@ export default function ProfileScreen({ navigation }) {
       throw new Error('Error al subir la imagen de perfil');
     } finally {
       setUploadingImage(false);
+    }
+  };
+
+  const handleSaveImageChanges = async () => {
+    try {
+      if (!profileImage) {
+        Alert.alert('Selecciona una imagen', 'Primero elige una imagen para continuar');
+        return;
+      }
+
+      setSaving(true);
+
+      // Upload selected image and refresh profile data
+      await uploadProfileImage();
+      await loadProfileData();
+
+      // Close modal and clear local image state
+      setShowImageModal(false);
+      setProfileImage(null);
+
+      // Show success feedback
+      setShowSuccessModal(true);
+    } catch (error) {
+      console.error('Error saving image changes:', error);
+      setErrorMessage(error.message || 'Error al guardar la imagen de perfil');
+      setShowErrorModal(true);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -455,7 +493,7 @@ export default function ProfileScreen({ navigation }) {
         </View>
         
         <TouchableOpacity 
-          onPress={selectProfileImage}
+          onPress={() => setShowImageModal(true)}
           style={{
             backgroundColor: 'rgba(139, 69, 255, 0.15)',
             paddingHorizontal: 20,
@@ -969,7 +1007,7 @@ export default function ProfileScreen({ navigation }) {
       <LoadingModal visible={saving} message="Guardando perfil..." />
       <SuccessModal 
         visible={showSuccessModal}
-en tr        message="¡Perfil actualizado exitosamente! 🎉"
+        message="¡Perfil actualizado exitosamente! 🎉"
         onClose={() => {
           setShowSuccessModal(false);
           // Reload profile data after modal is closed to show updated information
@@ -981,6 +1019,54 @@ en tr        message="¡Perfil actualizado exitosamente! 🎉"
         message={errorMessage}
         onClose={() => setShowErrorModal(false)}
       />
+      <Modal
+        visible={showImageModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowImageModal(false)}
+      >
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center' }}>
+          <View style={{ width: 360, maxWidth: '90%', backgroundColor: 'white', borderRadius: 16, padding: 20 }}>
+            <Text style={{ fontSize: 18, fontWeight: '700', marginBottom: 12, color: colors.textPrimary }}>Cambiar foto de perfil</Text>
+            <View style={{ alignItems: 'center', marginBottom: 16 }}>
+              {profileImage || profileData.profile_picture_url ? (
+                <Image source={{ uri: profileImage ? profileImage.uri : profileData.profile_picture_url }} style={{ width: 140, height: 140, borderRadius: 70 }} />
+              ) : (
+                <View style={{ width: 140, height: 140, borderRadius: 70, backgroundColor: '#EEE', justifyContent: 'center', alignItems: 'center' }}>
+                  <Ionicons name="person" size={56} color="#AAA" />
+                </View>
+              )}
+            </View>
+            <TouchableOpacity
+              onPress={selectProfileImage}
+              style={{
+                backgroundColor: 'white',
+                borderWidth: 2,
+                borderColor: colors.purpleStart,
+                paddingVertical: 12,
+                borderRadius: 10,
+                marginBottom: 12
+              }}
+            >
+              <Text style={{ textAlign: 'center', color: colors.purpleStart, fontWeight: '700' }}>Seleccionar imagen</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={handleSaveImageChanges}
+              disabled={saving || uploadingImage || !profileImage}
+              style={{
+                backgroundColor: saving || uploadingImage || !profileImage ? '#DDD' : colors.purpleStart,
+                paddingVertical: 12,
+                borderRadius: 10
+              }}
+            >
+              <Text style={{ textAlign: 'center', color: 'white', fontWeight: '700' }}>Guardar cambios</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setShowImageModal(false)} style={{ marginTop: 10 }}>
+              <Text style={{ textAlign: 'center', color: colors.textSecondary }}>Cerrar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
