@@ -1,3 +1,5 @@
+import { Buffer } from 'buffer';
+if (typeof global !== 'undefined' && !global.Buffer) { global.Buffer = Buffer; }
 import React from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer } from '@react-navigation/native';
@@ -14,9 +16,14 @@ import ChatScreen from './src/screens/ChatScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
 import JobsScreen from './src/screens/JobsScreen';
 import JobDetailScreen from './src/screens/JobDetailScreen';
+import ExpressJobsScreen from './src/screens/ExpressJobsScreen';
+import ExpressJobFormScreen from './src/screens/ExpressJobFormScreen';
+import ExpressJobDetailScreen from './src/screens/ExpressJobDetailScreen';
+import MyExpressAdsScreen from './src/screens/MyExpressAdsScreen';
 import CrearCuentaScreen from './src/screens/CrearCuentaScreen';
 import RecuperarContrasenaScreen from './src/screens/RecuperarContrasenaScreen';
 import VerificarEmailScreen from './src/screens/VerificarEmailScreen';
+import CandidateProfileScreen from './src/screens/CandidateProfileScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -39,6 +46,12 @@ function AppNavigator() {
             <Stack.Screen name="Jobs" component={JobsScreen} />
             <Stack.Screen name="JobDetail" component={JobDetailScreen} />
             <Stack.Screen name="Bienvenida" component={BienvenidaScreen} />
+            <Stack.Screen name="CandidateProfile" component={CandidateProfileScreen} />
+            {/* Express Jobs */}
+            <Stack.Screen name="ExpressJobs" component={ExpressJobsScreen} />
+            <Stack.Screen name="ExpressJobForm" component={ExpressJobFormScreen} />
+            <Stack.Screen name="ExpressJobDetail" component={ExpressJobDetailScreen} />
+            <Stack.Screen name="MyExpressAds" component={MyExpressAdsScreen} />
           </>
         ) : (
           <>

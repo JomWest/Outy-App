@@ -64,7 +64,7 @@ const highlightMatch = (text, query) => {
 export default function ChatsScreen({ navigation }) {
   const { user, token } = useAuth();
   const [avatarUrl, setAvatarUrl] = useState(null);
-  const displayName = user?.full_name || (user?.email?.split('@')[0]) || 'Usuario';
+  const displayName = (user?.full_name?.trim()) || (user?.name?.trim()) || (user?.email?.split('@')[0]) || 'Usuario';
 
   useEffect(() => {
     let mounted = true;
@@ -699,7 +699,7 @@ export default function ChatsScreen({ navigation }) {
                 {filteredContacts.length > 0 ? (
                   filteredContacts.map((u) => {
                     const info = getUserTypeInfo(u.role);
-                    const name = u.email?.split('@')[0] || 'Usuario';
+                    const name = (u.full_name?.trim()) || (u.name?.trim()) || (u.email?.split('@')[0]) || 'Usuario';
                     return (
                       <TouchableOpacity
                         key={u.id}
@@ -851,7 +851,7 @@ export default function ChatsScreen({ navigation }) {
                     {contacts.length > 0 ? (
                       contacts.slice(0, 8).map((u) => {
                         const info = getUserTypeInfo(u.role);
-                        const name = (u.full_name?.trim()) || (u.name?.trim()) || (u.email?.split('@')[0]) || 'Usuario';
+                        const name = (user?.full_name?.trim()) || (user?.name?.trim()) || (user?.email?.split('@')[0]) || 'Usuario';
                         return (
                           <TouchableOpacity
                             key={u.id}

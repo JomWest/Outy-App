@@ -10,7 +10,8 @@ import {
   Platform,
   Alert,
   ActivityIndicator,
-  StyleSheet
+  StyleSheet,
+  Image
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -28,6 +29,8 @@ export default function ChatScreen({ route, navigation }) {
   const [isSending, setIsSending] = useState(false);
   const [conversationId, setConversationId] = useState(null);
   const scrollViewRef = useRef(null);
+  const [otherAvatarUrl, setOtherAvatarUrl] = useState(null);
+  const [myAvatarUrl, setMyAvatarUrl] = useState(null);
 
   useEffect(() => {
     initializeChat();
@@ -60,21 +63,45 @@ export default function ChatScreen({ route, navigation }) {
 
   // Mark messages as read when user views them
   useEffect(() => {
+    // Cargar avatares (interlocutor y propio)
+    let mounted = true;
+    const loadAvatars = async () => {
+      try {
+        if (token && userId) {
+          const otherUrl = await client.getFileFromDatabase(userId, 'profile_image', token);
+          if (mounted) setOtherAvatarUrl(otherUrl || null);
+        }
+        if (token && user?.id) {
+          const meUrl = await client.getFileFromDatabase(user.id, 'profile_image', token);
+          if (mounted) setMyAvatarUrl(meUrl || null);
+        }
+      } catch (e) {
+        console.log('ChatScreen avatar load error', e?.message || e);
+      }
+    };
+    loadAvatars();
+    return () => { mounted = false; };
+  }, [userId, user?.id, token, user?.profile_image_updated_at]);
+
+  useEffect(() => {
     if (conversationId && messages.length > 0) {
       const unreadMessages = messages.filter(msg => 
         msg.sender_id !== user.id && 
         msg.status !== 'read'
       );
-      
-      // Mark each unread message as read
       unreadMessages.forEach(message => {
-        client.markMessageAsRead(conversationId, message.id, token)
-          .then(() => {
-            console.log(`Marked message ${message.id} as read`);
-          })
-          .catch(error => {
-            console.error('Error marking message as read:', error);
-          });
+        // Actualiza estado local inmediatamente
+        setMessages(prev => prev.map(m => m.id === message.id ? { ...m, status: 'read', read_at: new Date().toISOString() } : m));
+        // Usa sockets para notificar lectura sin retrasos
+        try {
+          socketService.markMessageAsRead(conversationId, message.id);
+        } catch (e) {
+          console.log('Socket mark read error', e?.message || e);
+        }
+        // Fallback HTTP (no bloqueante)
+        client.markMessageAsRead(conversationId, message.id, token).catch(err => {
+          console.log('HTTP mark read error', err?.message || err);
+        });
       });
     }
   }, [messages, conversationId, user.id, token]);
@@ -161,9 +188,11 @@ export default function ChatScreen({ route, navigation }) {
   const loadMessages = async (convId) => {
     try {
       const messagesData = await client.getConversationMessages(convId, token);
-      
-      // Use messages directly from API without transformation
-      setMessages(messagesData);
+      const sorted = (messagesData || []).slice().sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+      setMessages(sorted);
+      setTimeout(() => {
+        scrollViewRef.current?.scrollToEnd({ animated: true });
+      }, 100);
     } catch (error) {
       console.error('Error loading messages:', error);
       // Fallback to simulated messages
@@ -324,23 +353,27 @@ export default function ChatScreen({ route, navigation }) {
         }}
       >
         {!isOwn && (
-          <View style={{
-            width: 32,
-            height: 32,
-            borderRadius: 16,
-            backgroundColor: userTypeInfo.color,
-            alignItems: 'center',
-            justifyContent: 'center',
-            marginRight: 8,
-            marginTop: 4
-          }}>
-            <Text style={{
-              fontSize: 12,
-              fontWeight: 'bold',
-              color: 'white'
-            }}>
-              {getInitials(senderName)}
-            </Text>
+          <View style={{ marginRight: 12 }}>
+            {otherAvatarUrl ? (
+              <Image source={{ uri: otherAvatarUrl }} style={{ width: 40, height: 40, borderRadius: 20 }} />
+            ) : (
+              <View style={{
+                width: 40,
+                height: 40,
+                borderRadius: 20,
+                backgroundColor: userTypeInfo.color,
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                <Text style={{
+                  fontSize: 14,
+                  fontWeight: 'bold',
+                  color: 'white'
+                }}>
+                  {getInitials(userName)}
+                </Text>
+              </View>
+            )}
           </View>
         )}
 
@@ -396,26 +429,30 @@ export default function ChatScreen({ route, navigation }) {
           </Text>
         </View>
 
-        {isOwn && (
-          <View style={{
-            width: 32,
-            height: 32,
-            borderRadius: 16,
-            backgroundColor: colors.purpleStart,
-            alignItems: 'center',
-            justifyContent: 'center',
-            marginLeft: 8,
-            marginTop: 4
-          }}>
-            <Text style={{
-              fontSize: 12,
-              fontWeight: 'bold',
-              color: 'white'
+        {isOwn ? (
+          myAvatarUrl ? (
+            <Image source={{ uri: myAvatarUrl }} style={{ width: 32, height: 32, borderRadius: 16, marginLeft: 8, marginTop: 4 }} />
+          ) : (
+            <View style={{
+              width: 32,
+              height: 32,
+              borderRadius: 16,
+              backgroundColor: colors.purpleStart,
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginLeft: 8,
+              marginTop: 4
             }}>
-              {getInitials(user.email?.split('@')[0] || 'Tú')}
-            </Text>
-          </View>
-        )}
+              <Text style={{
+                fontSize: 12,
+                fontWeight: 'bold',
+                color: 'white'
+              }}>
+                {getInitials((user.full_name?.trim()) || (user.name?.trim()) || (user.email?.split('@')[0]) || 'Tú')}
+              </Text>
+            </View>
+          )
+        ) : null}
       </View>
     );
   };
@@ -451,25 +488,28 @@ export default function ChatScreen({ route, navigation }) {
             <Ionicons name="arrow-back" size={24} color="white" />
           </TouchableOpacity>
 
-          <View style={{
-            width: 40,
-            height: 40,
-            borderRadius: 20,
-            backgroundColor: userTypeInfo.color,
-            alignItems: 'center',
-            justifyContent: 'center',
-            marginRight: 12
-          }}>
-            <Text style={{
-              fontSize: 14,
-              fontWeight: 'bold',
-              color: 'white'
+          {otherAvatarUrl ? (
+            <Image source={{ uri: otherAvatarUrl }} style={{ width: 40, height: 40, borderRadius: 20, marginRight: 12 }} />
+          ) : (
+            <View style={{
+              width: 40,
+              height: 40,
+              borderRadius: 20,
+              backgroundColor: userTypeInfo.color,
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginRight: 12
             }}>
-              {getInitials(userName)}
-            </Text>
-          </View>
-
-          <View style={{ flex: 1 }}>
+              <Text style={{
+                fontSize: 14,
+                fontWeight: 'bold',
+                color: 'white'
+              }}>
+                {getInitials(userName)}
+              </Text>
+            </View>
+           )}
+           <View style={{ flex: 1 }}>
             <Text style={{
               fontSize: 18,
               fontWeight: 'bold',
@@ -490,13 +530,33 @@ export default function ChatScreen({ route, navigation }) {
                 marginRight: 6
               }}>
                 <Text style={{
-                  fontSize: 11,
-                  color: 'white',
-                  fontWeight: '500'
-                }}>
-                  {userTypeInfo.label}
+                fontSize: 11,
+                color: 'white',
+                fontWeight: '500'
+              }}>
+                {userTypeInfo.label}
+              </Text>
+            </View>
+            {userRole === 'candidato' && (
+              <TouchableOpacity
+                onPress={() => navigation.navigate('CandidateProfile', { candidateId: userId, candidateName: userName })}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  backgroundColor: 'rgba(255,255,255,0.2)',
+                  paddingHorizontal: 10,
+                  paddingVertical: 6,
+                  borderRadius: radius.sm,
+                  marginLeft: 8
+                }}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="person-circle-outline" size={18} color="white" />
+                <Text style={{ color: 'white', fontSize: 12, fontWeight: '600', marginLeft: 6 }}>
+                  Ver perfil
                 </Text>
-              </View>
+              </TouchableOpacity>
+            )}
               <Text style={{
                 fontSize: 12,
                 color: 'rgba(255,255,255,0.8)'

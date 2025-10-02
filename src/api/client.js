@@ -38,6 +38,8 @@ export const api = {
   
   // Users endpoints
   getUsersForChat: (token) => request('/api/users/chat/list', { token }),
+  getAllUsers: (token) => request('/api/users', { token }),
+  getUserById: (id, token) => request(`/api/users/${id}`, { token }),
   
   // Conversations endpoints
   getUserConversations: (userId, token) => request(`/api/conversations/user/${userId}`, { token }),
@@ -89,6 +91,50 @@ export const api = {
 
   // Locations (departamentos y municipios)
   getLocationsNicaragua: (page = 1, pageSize = 500, token) => request(`/api/locations_nicaragua?page=${page}&pageSize=${pageSize}`, { token }),
+
+  // ======== Trabajos Exprés (Express Jobs) ========
+  // Categorías de oficios (para filtros y formulario)
+  getTradeCategories: (page = 1, pageSize = 200, token) => request(`/api/trade_categories?page=${page}&pageSize=${pageSize}`, { token }),
+
+  // Listar perfiles de trabajadores (paginado)
+  getWorkerProfilesPaged: (page = 1, pageSize = 500, token) => request(`/api/worker_profiles?page=${page}&pageSize=${pageSize}`, { token }),
+
+  // Buscar trabajos exprés con filtros
+  searchExpressJobs: ({ trade_category_id, location_id, urgency, min_budget, max_budget, status = 'abierto', client_id } = {}, token) => {
+    const params = new URLSearchParams();
+    if (trade_category_id) params.append('trade_category_id', trade_category_id);
+    if (location_id) params.append('location_id', location_id);
+    if (urgency) params.append('urgency', urgency);
+    if (min_budget) params.append('min_budget', min_budget);
+    if (max_budget) params.append('max_budget', max_budget);
+    if (status) params.append('status', status);
+    if (client_id) params.append('client_id', client_id);
+    const qs = params.toString() ? `?${params.toString()}` : '';
+    return request(`/api/workers/express-jobs/search${qs}`, { token });
+  },
+
+  // CRUD de trabajos exprés
+  createExpressJob: (jobData, token) => request('/api/express_jobs', { method: 'POST', body: jobData, token }),
+  updateExpressJob: (id, jobData, token) => request(`/api/express_jobs/${id}`, { method: 'PATCH', body: jobData, token }),
+  deleteExpressJob: (id, token) => {
+    console.log('[api] deleteExpressJob called', { id });
+    return request(`/api/express_jobs/${id}`, { method: 'DELETE', token })
+      .then(res => {
+        console.log('[api] deleteExpressJob success', { id });
+        return res;
+      })
+      .catch(err => {
+        console.error('[api] deleteExpressJob error', err);
+        throw err;
+      });
+  },
+  getExpressJobsPaged: (page = 1, pageSize = 20, token) => request(`/api/express_jobs?page=${page}&pageSize=${pageSize}`, { token }),
+
+  // Postulaciones a trabajos exprés
+  getExpressJobApplications: (jobId, token) => request(`/api/workers/express-jobs/${jobId}/applications`, { token }),
+  createExpressJobApplication: (applicationData, token) => request('/api/express_job_applications', { method: 'POST', body: applicationData, token }),
+  updateExpressJobApplication: (id, applicationData, token) => request(`/api/express_job_applications/${id}`, { method: 'PUT', body: applicationData, token }),
+  deleteExpressJobApplication: (id, token) => request(`/api/express_job_applications/${id}`, { method: 'DELETE', token }),
 
   // File upload endpoint
   uploadFile: async (formData, token) => {
@@ -209,5 +255,7 @@ export const api = {
       console.error('Error in getFileFromDatabase:', error);
       throw error;
     }
-  }
+  },
+  // Work experience endpoint
+  getWorkExperience: (userId, token) => request(`/api/work_experience?user_id=${userId}`, { token }),
 };
