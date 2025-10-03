@@ -31,6 +31,8 @@ export default function ChatScreen({ route, navigation }) {
   const scrollViewRef = useRef(null);
   const [otherAvatarUrl, setOtherAvatarUrl] = useState(null);
   const [myAvatarUrl, setMyAvatarUrl] = useState(null);
+  // Nombre mostrado en el header: preferir nombre de BD sobre correo
+  const [displayName, setDisplayName] = useState(userName);
 
   useEffect(() => {
     initializeChat();
@@ -82,6 +84,42 @@ export default function ChatScreen({ route, navigation }) {
     loadAvatars();
     return () => { mounted = false; };
   }, [userId, user?.id, token, user?.profile_image_updated_at]);
+
+  // Cargar nombre real desde la BD (si existe)
+  useEffect(() => {
+    let mounted = true;
+    const loadDisplayName = async () => {
+      try {
+        if (!userId || !token) return;
+        // Intentar obtener primero el nombre del perfil (full_name)
+        let nameFromProfile = null;
+        try {
+          const profile = await client.getCandidateProfile(userId, token);
+          nameFromProfile = (profile?.full_name?.trim()) || null;
+        } catch (e) {
+          // no bloquear si el perfil no existe
+          console.log('ChatScreen profile name load error', e?.message || e);
+        }
+
+        // Luego intentar obtener el nombre del usuario
+        let nameFromUser = null;
+        try {
+          const otherUser = await client.getUserById(userId, token);
+          nameFromUser = (otherUser?.full_name?.trim()) || (otherUser?.name?.trim()) || null;
+        } catch (e) {
+          console.log('ChatScreen user name load error', e?.message || e);
+        }
+
+        const name = nameFromProfile || nameFromUser || (userName?.trim()) || 'Usuario';
+        if (mounted) setDisplayName(name);
+      } catch (e) {
+        // Mantener valor actual si falla
+        console.log('ChatScreen loadDisplayName error', e?.message || e);
+      }
+    };
+    loadDisplayName();
+    return () => { mounted = false; };
+  }, [userId, token]);
 
   useEffect(() => {
     if (conversationId && messages.length > 0) {
@@ -505,7 +543,7 @@ export default function ChatScreen({ route, navigation }) {
                 fontWeight: 'bold',
                 color: 'white'
               }}>
-                {getInitials(userName)}
+                {getInitials(displayName)}
               </Text>
             </View>
            )}
@@ -514,75 +552,46 @@ export default function ChatScreen({ route, navigation }) {
               fontSize: 18,
               fontWeight: 'bold',
               color: 'white'
-            }}>
-              {userName}
+            }} numberOfLines={1}>
+              {displayName}
             </Text>
-            <View style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              marginTop: 2
-            }}>
-              <View style={{
-                backgroundColor: 'rgba(255,255,255,0.2)',
-                paddingHorizontal: 6,
-                paddingVertical: 2,
-                borderRadius: radius.sm,
-                marginRight: 6
-              }}>
-                <Text style={{
-                fontSize: 11,
-                color: 'white',
-                fontWeight: '500'
-              }}>
-                {userTypeInfo.label}
-              </Text>
-            </View>
-            {userRole === 'candidato' && (
+            {/* Ver perfil debajo del nombre (sin chip de rol ni estado) */}
+            <View style={{ marginTop: 6 }}>
               <TouchableOpacity
-                onPress={() => navigation.navigate('CandidateProfile', { candidateId: userId, candidateName: userName })}
+                onPress={() => navigation.navigate('CandidateProfile', { candidateId: userId, candidateName: displayName })}
                 style={{
                   flexDirection: 'row',
                   alignItems: 'center',
-                  backgroundColor: 'rgba(255,255,255,0.2)',
+                  alignSelf: 'flex-start',
+                  backgroundColor: 'rgba(255,255,255,0.15)',
                   paddingHorizontal: 10,
-                  paddingVertical: 6,
+                  paddingVertical: 4,
                   borderRadius: radius.sm,
-                  marginLeft: 8
+                  borderWidth: 1,
+                  borderColor: 'rgba(255,255,255,0.30)',
+                  maxWidth: '70%'
                 }}
-                activeOpacity={0.8}
+                activeOpacity={0.85}
               >
                 <Ionicons name="person-circle-outline" size={18} color="white" />
-                <Text style={{ color: 'white', fontSize: 12, fontWeight: '600', marginLeft: 6 }}>
+                <Text style={{ color: 'white', fontSize: 12, fontWeight: '600', marginLeft: 6 }} numberOfLines={1}>
                   Ver perfil
                 </Text>
               </TouchableOpacity>
-            )}
-              <Text style={{
-                fontSize: 12,
-                color: 'rgba(255,255,255,0.8)'
-              }}>
-                En línea
-              </Text>
             </View>
           </View>
 
-          <TouchableOpacity
-            style={{
-              backgroundColor: 'rgba(255,255,255,0.2)',
-              padding: 8,
-              borderRadius: radius.sm,
-              marginRight: 8
-            }}
-          >
-            <Ionicons name="call" size={20} color="white" />
-          </TouchableOpacity>
+        
 
           <TouchableOpacity
             style={{
-              backgroundColor: 'rgba(255,255,255,0.2)',
+              backgroundColor: 'rgba(255,255,255,0.18)',
               padding: 8,
-              borderRadius: radius.sm
+              borderRadius: radius.md,
+              borderWidth: 1,
+              borderColor: 'rgba(255,255,255,0.35)'
             }}
+            activeOpacity={0.85}
           >
             <Ionicons name="ellipsis-vertical" size={20} color="white" />
           </TouchableOpacity>

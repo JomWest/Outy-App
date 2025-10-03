@@ -1,15 +1,15 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, SafeAreaView, RefreshControl, ActivityIndicator, Modal } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, SafeAreaView, RefreshControl, ActivityIndicator, Modal, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../api/client';
 import { colors, spacing, typography, radius } from '../theme';
 import { useFocusEffect } from '@react-navigation/native';
-import { normalizeTextSafe } from '../services/text';
+import { normalizeTextSafe, labelUrgency } from '../services/text';
 
 export default function ExpressJobsScreen({ navigation }) {
-  const { token } = useAuth();
+  const { user, token } = useAuth();
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -18,6 +18,7 @@ export default function ExpressJobsScreen({ navigation }) {
   const [filters, setFilters] = useState({ trade_category_id: null, location_id: null, urgency: null });
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [showLocationModal, setShowLocationModal] = useState(false);
+  const [workerId, setWorkerId] = useState(null);
 
   const loadCategories = async () => {
     try { const r = await api.getTradeCategories(1, 200, token); setCategories(r.items || r || []); } catch (e) { console.error('loadCategories', e); }
@@ -37,6 +38,47 @@ export default function ExpressJobsScreen({ navigation }) {
 
   useEffect(() => { loadCategories(); loadLocations(); loadJobs(); }, []);
   useEffect(() => { loadJobs(); }, [filters.trade_category_id, filters.location_id, filters.urgency]);
+
+  // Resolver el perfil de trabajador del usuario actual
+  const resolveWorkerId = async () => {
+    try {
+      const resp = await api.getWorkerProfilesPaged(1, 1000, token);
+      const items = resp.items || resp || [];
+      const mine = items.find(wp => wp.user_id === user?.id);
+      if (mine) setWorkerId(mine.id);
+    } catch (e) {
+      console.warn('resolveWorkerId failed', e);
+    }
+  };
+
+  useEffect(() => { resolveWorkerId(); }, [user?.id]);
+
+  const handleInterestQuick = async (job) => {
+    if (!job?.id || user?.id === job.client_id) return;
+    try {
+      if (!workerId) await resolveWorkerId();
+      if (!workerId) {
+        Alert.alert('No disponible', 'No se pudo identificar tu perfil de trabajador.');
+        return;
+      }
+      const payload = {
+        express_job_id: job.id,
+        worker_id: workerId,
+        proposed_price: job?.budget_min || 1,
+        message: 'Estoy interesado',
+      };
+      try { await api.createExpressJobApplication(payload, token); } catch (e) { /* puede existir ya */ }
+      const conv = await api.createConversation(user.id, job.client_id, token);
+      const conversationId = conv?.id || conv?.conversation_id || conv?.data?.id;
+      const text = `Hola, estoy interesado en tu anuncio exprés: ${job.title}`;
+      if (conversationId) {
+        await api.sendMessage(conversationId, text, token);
+      }
+      Alert.alert('Interés enviado', 'Se notificó al publicador y se envió un mensaje.');
+    } catch (e) {
+      Alert.alert('Error', e?.message || 'No se pudo registrar el interés.');
+    }
+  };
 
   // Refrescar al volver a enfocar la pantalla (por ejemplo, tras crear/editar un anuncio)
   useFocusEffect(React.useCallback(() => {
@@ -86,7 +128,7 @@ export default function ExpressJobsScreen({ navigation }) {
           {['inmediato','hoy','esta_semana','flexible'].map(u => (
             <TouchableOpacity key={u} onPress={() => setFilters(f => ({ ...f, urgency: f.urgency === u ? null : u }))}
               style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: filters.urgency === u ? colors.purpleStart : '#E5E7EB', backgroundColor: filters.urgency === u ? `${colors.purpleStart}15` : 'white', marginRight: 8 }}>
-              <Text style={{ fontSize: 12, color: filters.urgency === u ? colors.purpleStart : '#374151' }}>{u}</Text>
+              <Text style={{ fontSize: 12, color: filters.urgency === u ? colors.purpleStart : '#374151' }}>{labelUrgency(u)}</Text>
             </TouchableOpacity>
           ))}
         </ScrollView>
@@ -137,10 +179,26 @@ export default function ExpressJobsScreen({ navigation }) {
                   <Text style={{ fontSize: 11, color: '#6B7280', marginTop: 4 }}>{(job.application_count ?? 0)} interesados</Text>
                 </View>
               </View>
+              {/* Acciones rápidas */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', marginTop: 10 }}>
+                <TouchableOpacity onPress={() => navigation.navigate('ExpressJobDetail', { job })} style={{ flexDirection: 'row', alignItems: 'center', marginRight: 12 }}>
+                  <Ionicons name="eye" size={18} color={colors.purpleStart} style={{ marginRight: 6 }} />
+                  <Text style={{ color: colors.purpleStart, fontWeight: '600' }}>Ver</Text>
+                </TouchableOpacity>
+                {user?.id !== job.client_id && (
+                  <TouchableOpacity onPress={() => handleInterestQuick(job)} style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Ionicons name="heart" size={18} color={colors.purpleStart} style={{ marginRight: 6 }} />
+                    <Text style={{ color: colors.purpleStart, fontWeight: '600' }}>Interesado</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
             </TouchableOpacity>
           ))}
         </ScrollView>
       )}
+
+      {/* Handler de interés rápido */}
+      
 
       {/* Modal categorías */}
       <Modal visible={showCategoryModal} animationType="slide" onRequestClose={() => setShowCategoryModal(false)}>

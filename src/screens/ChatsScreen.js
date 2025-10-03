@@ -31,10 +31,17 @@ const getUserTypeInfo = (role) => {
   }
 };
 
-const getInitials = (email) => {
-  if (!email) return 'U';
-  const name = email.split('@')[0];
-  return name.substring(0, 2).toUpperCase();
+const getInitials = (text) => {
+  if (!text) return 'U';
+  const t = text.trim();
+  if (t.includes(' ')) {
+    const parts = t.split(' ').filter(Boolean);
+    const first = parts[0]?.[0] || '';
+    const last = parts.length > 1 ? parts[parts.length - 1][0] : '';
+    return (first + last).toUpperCase();
+  }
+  const prefix = t.split('@')[0];
+  return prefix.substring(0, 2).toUpperCase();
 };
 
 const formatTime = (time) => {
@@ -64,7 +71,8 @@ const highlightMatch = (text, query) => {
 export default function ChatsScreen({ navigation }) {
   const { user, token } = useAuth();
   const [avatarUrl, setAvatarUrl] = useState(null);
-  const displayName = (user?.full_name?.trim()) || (user?.name?.trim()) || (user?.email?.split('@')[0]) || 'Usuario';
+  // Nombre mostrado en el header de chats: usar siempre nombre de BD
+  const [displayName, setDisplayName] = useState((user?.full_name?.trim()) || (user?.name?.trim()) || 'Usuario');
 
   useEffect(() => {
     let mounted = true;
@@ -77,7 +85,18 @@ export default function ChatsScreen({ navigation }) {
         console.log('Chats header avatar error', e?.message || e);
       }
     };
+    const loadProfileName = async () => {
+      try {
+        if (!user?.id || !token) return;
+        const profile = await api.getCandidateProfile(user.id, token);
+        const name = (profile?.full_name?.trim()) || null;
+        if (mounted && name) setDisplayName(name);
+      } catch (e) {
+        console.log('Chats header profile name error', e?.message || e);
+      }
+    };
     loadAvatar();
+    loadProfileName();
     return () => { mounted = false; };
   }, [user?.id, token, user?.profile_image_updated_at]);
   const [conversations, setConversations] = useState([]);
@@ -85,12 +104,14 @@ export default function ChatsScreen({ navigation }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [error, setError] = useState(null);
   const [profileImages, setProfileImages] = useState({});
+  const [nameMap, setNameMap] = useState({});
   // Contacts modal state
   const [contactsModalVisible, setContactsModalVisible] = useState(false);
   const [contacts, setContacts] = useState([]);
   const [contactsLoading, setContactsLoading] = useState(false);
   const [contactsError, setContactsError] = useState(null);
   const [contactsSearch, setContactsSearch] = useState('');
+  const [contactImages, setContactImages] = useState({});
   // Debounced search and suggestions
   const [searchQueryDebounced, setSearchQueryDebounced] = useState('');
   const [suggestions, setSuggestions] = useState([]);
@@ -111,23 +132,23 @@ export default function ChatsScreen({ navigation }) {
     }
     const q = searchQueryDebounced.toLowerCase();
     if (!q) { setSuggestions([]); return; }
-    const convPeople = conversations.map(conv => ({
-      id: conv.other_user_id,
-      email: conv.other_user_email,
-      role: conv.other_user_role,
-      // Prefer full name when available, fallback to email prefix
-      name: (conv.other_user_full_name?.trim()) || (conv.other_user_name?.trim()) || (conv.other_user_email?.split('@')[0]) || 'Usuario',
-      source: 'conversation',
-      last_message_at: conv.last_message_at || ''
-    }));
-    const contactPeople = contacts.map(u => ({
-      id: u.id,
-      email: u.email,
-      role: u.role,
-      // Prefer full name when available, fallback to email prefix
-      name: (u.full_name?.trim()) || (u.name?.trim()) || (u.email?.split('@')[0]) || 'Usuario',
-      source: 'contact'
-    }));
+  const convPeople = conversations.map(conv => ({
+    id: conv.other_user_id,
+    email: conv.other_user_email,
+    role: conv.other_user_role,
+    // Preferir nombre real cuando esté disponible; no usar correo
+    name: (conv.other_user_full_name?.trim()) || (conv.other_user_name?.trim()) || 'Usuario',
+    source: 'conversation',
+    last_message_at: conv.last_message_at || ''
+  }));
+  const contactPeople = contacts.map(u => ({
+    id: u.id,
+    email: u.email,
+    role: u.role,
+    // Preferir nombre real; evitar el fragmento del correo
+    name: (u.full_name?.trim()) || (u.name?.trim()) || 'Usuario',
+    source: 'contact'
+  }));
     const byId = new Map();
     [...convPeople, ...contactPeople].forEach(p => {
       const existing = byId.get(p.id);
@@ -216,6 +237,9 @@ export default function ChatsScreen({ navigation }) {
       
       // Load profile images for all users in conversations
       loadProfileImages(processedConversations);
+
+      // Load names (full_name/name) for all users in conversations
+      loadConversationNames(processedConversations);
     } catch (error) {
       console.error('Error loading conversations:', error);
       setError('Error al cargar las conversaciones');
@@ -252,6 +276,40 @@ export default function ChatsScreen({ navigation }) {
     }
   };
 
+  const loadConversationNames = async (conversations) => {
+    try {
+      const namePromises = conversations.map(async (conv) => {
+        const userId = conv.other_user_id;
+        let name = null;
+        // Try candidate profile first
+        try {
+          const profile = await api.getCandidateProfile(userId, token);
+          name = (profile?.full_name?.trim()) || null;
+        } catch (e) {
+          // ignore, try user next
+        }
+        if (!name) {
+          try {
+            const otherUser = await api.getUserById(userId, token);
+            name = (otherUser?.full_name?.trim()) || (otherUser?.name?.trim()) || null;
+          } catch (e) {
+            // ignore
+          }
+        }
+        return { userId, name };
+      });
+
+      const results = await Promise.all(namePromises);
+      const map = { ...nameMap };
+      results.forEach(({ userId, name }) => {
+        if (name) map[userId] = name;
+      });
+      setNameMap(map);
+    } catch (error) {
+      console.error('Error loading conversation names:', error);
+    }
+  };
+
   // Load contacts list for starting new conversations
   const loadContactsList = async () => {
     try {
@@ -268,7 +326,42 @@ export default function ChatsScreen({ navigation }) {
       } else if (users && (Array.isArray(users.employees) || Array.isArray(users.candidates))) {
         usersArray = [ ...(users.employees || []), ...(users.candidates || []) ];
       }
-      setContacts(usersArray.filter(u => u.id !== user.id));
+      const enriched = await Promise.all(usersArray.map(async (u) => {
+        let fullName = (u.full_name?.trim()) || (u.name?.trim()) || null;
+        if (!fullName) {
+          try {
+            const profile = await api.getCandidateProfile(u.id, token);
+            fullName = (profile?.full_name?.trim()) || fullName;
+          } catch {}
+        }
+        if (!fullName) {
+          try {
+            const otherUser = await api.getUserById(u.id, token);
+            fullName = (otherUser?.full_name?.trim()) || (otherUser?.name?.trim()) || fullName;
+          } catch {}
+        }
+        return { ...u, full_name: fullName || undefined, name: fullName || undefined };
+      }));
+      setContacts(enriched.filter(u => u.id !== user.id));
+
+      // Cargar fotos de perfil para los contactos
+      try {
+        const imgPromises = enriched.map(async (u) => {
+          try {
+            const url = await api.getFileFromDatabase(u.id, 'profile_image', token);
+            return { id: u.id, url: url || null };
+          } catch (e) {
+            return { id: u.id, url: null };
+          }
+        });
+        const results = await Promise.all(imgPromises);
+        const imagesMap = {};
+        results.forEach(({ id, url }) => { imagesMap[id] = url; });
+        setContactImages(imagesMap);
+      } catch (e) {
+        // Si falla, mantener iniciales
+        setContactImages({});
+      }
     } catch (e) {
       console.error('Error loading contacts:', e);
       setContactsError('No se pudieron cargar los contactos');
@@ -288,9 +381,12 @@ export default function ChatsScreen({ navigation }) {
   };
 
   // Filter conversations based on search query
-  const filteredConversations = conversations.filter(conv =>
-    conv.other_user_email?.toLowerCase().includes(searchQueryDebounced.toLowerCase())
-  );
+  const filteredConversations = conversations.filter(conv => {
+    const q = searchQueryDebounced.toLowerCase();
+    const name = (nameMap[conv.other_user_id] || conv.other_user_full_name || conv.other_user_name || '').toLowerCase();
+    const email = (conv.other_user_email || '').toLowerCase();
+    return name.includes(q) || email.includes(q);
+  });
 
   const filteredContacts = contacts.filter(u =>
     u.email?.toLowerCase().includes(contactsSearch.toLowerCase())
@@ -299,6 +395,7 @@ export default function ChatsScreen({ navigation }) {
   const renderConversationItem = (conversation) => {
     const userTypeInfo = getUserTypeInfo(conversation.other_user_role);
     const profileImageUrl = profileImages[conversation.other_user_id];
+    const name = nameMap[conversation.other_user_id] || (conversation.other_user_full_name?.trim()) || (conversation.other_user_name?.trim()) || 'Usuario';
     
     return (
       <TouchableOpacity
@@ -312,7 +409,7 @@ export default function ChatsScreen({ navigation }) {
         }}
         onPress={() => navigation.navigate('Chat', { 
           userId: conversation.other_user_id, 
-          userName: conversation.other_user_email?.split('@')[0] || 'Usuario',
+          userName: name,
           userRole: conversation.other_user_role
         })}
         activeOpacity={0.7}
@@ -382,7 +479,7 @@ export default function ChatsScreen({ navigation }) {
                 color: '#1F2937',
                 flex: 1
               }}>
-                {conversation.other_user_email?.split('@')[0] || 'Usuario'}
+                {name}
               </Text>
               
               <Text style={{
@@ -699,7 +796,7 @@ export default function ChatsScreen({ navigation }) {
                 {filteredContacts.length > 0 ? (
                   filteredContacts.map((u) => {
                     const info = getUserTypeInfo(u.role);
-                    const name = (u.full_name?.trim()) || (u.name?.trim()) || (u.email?.split('@')[0]) || 'Usuario';
+    const name = (u.full_name?.trim()) || (u.name?.trim()) || 'Usuario';
                     return (
                       <TouchableOpacity
                         key={u.id}
@@ -710,8 +807,12 @@ export default function ChatsScreen({ navigation }) {
                         activeOpacity={0.7}
                         style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' }}
                       >
-                        <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: info.color, alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
-                          <Text style={{ fontSize: 14, fontWeight: 'bold', color: 'white' }}>{getInitials(u.email)}</Text>
+                        <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: info.color, alignItems: 'center', justifyContent: 'center', marginRight: 12, overflow: 'hidden' }}>
+                          {contactImages[u.id] ? (
+                            <Image source={{ uri: contactImages[u.id] }} style={{ width: 40, height: 40 }} />
+                          ) : (
+                            <Text style={{ fontSize: 14, fontWeight: 'bold', color: 'white' }}>{getInitials(name || u.email)}</Text>
+                          )}
                         </View>
                         <View style={{ flex: 1 }}>
                           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -851,7 +952,7 @@ export default function ChatsScreen({ navigation }) {
                     {contacts.length > 0 ? (
                       contacts.slice(0, 8).map((u) => {
                         const info = getUserTypeInfo(u.role);
-                        const name = (user?.full_name?.trim()) || (user?.name?.trim()) || (user?.email?.split('@')[0]) || 'Usuario';
+    const name = (u?.full_name?.trim()) || (u?.name?.trim()) || 'Usuario';
                         return (
                           <TouchableOpacity
                             key={u.id}
@@ -860,7 +961,7 @@ export default function ChatsScreen({ navigation }) {
                             style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' }}
                           >
                             <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: info.color, alignItems: 'center', justifyContent: 'center', marginRight: 10 }}>
-                              <Text style={{ fontSize: 12, fontWeight: 'bold', color: 'white' }}>{getInitials(u.email)}</Text>
+                              <Text style={{ fontSize: 12, fontWeight: 'bold', color: 'white' }}>{getInitials(name || u.email)}</Text>
                             </View>
                             <View style={{ flex: 1 }}>
                               <View style={{ flexDirection: 'row', alignItems: 'center' }}>

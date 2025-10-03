@@ -1,7 +1,9 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api } from '../api/client';
 import socketService from '../services/socketService';
+import { registerForPushNotificationsAsync } from '../services/pushNotifications';
 
 const AuthContext = createContext();
 
@@ -28,6 +30,16 @@ export const AuthProvider = ({ children }) => {
         
         // Connect to Socket.IO when user is authenticated
         socketService.connect(storedToken);
+
+        // Register push token on app start
+        try {
+          const expoToken = await registerForPushNotificationsAsync();
+          if (expoToken) {
+            await api.registerPushToken(expoToken, { platform: Platform.OS }, storedToken);
+          }
+        } catch (e) {
+          console.warn('Push token registration failed (startup)', e?.message || e);
+        }
       }
     } catch (error) {
       console.error('Error checking auth state:', error);
@@ -50,6 +62,16 @@ export const AuthProvider = ({ children }) => {
         
         // Connect to Socket.IO after successful login
         socketService.connect(response.token);
+
+        // Register push token after login
+        try {
+          const expoToken = await registerForPushNotificationsAsync();
+          if (expoToken) {
+            await api.registerPushToken(expoToken, { platform: Platform.OS }, response.token);
+          }
+        } catch (e) {
+          console.warn('Push token registration failed (login)', e?.message || e);
+        }
         
         return response;
       } else {

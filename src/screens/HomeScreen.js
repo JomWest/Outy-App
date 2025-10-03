@@ -18,7 +18,8 @@ export default function HomeScreen({ navigation }) {
   const avatarSize = isSmall ? 40 : 44;
   // Helpers para mostrar nombre y rol con mejor formato
   const toTitleCase = (str) => (str ? str.charAt(0).toUpperCase() + str.slice(1) : '');
-  const displayName = (user?.full_name?.trim()) || toTitleCase(user?.email?.split('@')[0]) || 'Usuario';
+  // Mostrar siempre el nombre desde la BD; si no hay, usar 'Usuario'
+  const [displayName, setDisplayName] = useState((user?.full_name?.trim()) || (user?.name?.trim()) || 'Usuario');
   const roleMap = { admin: 'Admin', employee: 'Empleado', candidate: 'Candidato', company: 'Empresa' };
   const roleLabel = roleMap[user?.role] || 'Usuario';
   const [stats, setStats] = useState({ total: 0, byRole: { admin: 0, employee: 0, candidate: 0, company: 0 } });
@@ -41,6 +42,16 @@ export default function HomeScreen({ navigation }) {
         console.log('Avatar load error', e?.message || e);
       }
     };
+    const loadProfileName = async () => {
+      try {
+        if (!user?.id || !token) return;
+        const profile = await api.getCandidateProfile(user.id, token);
+        const name = (profile?.full_name?.trim()) || null;
+        if (mounted && name) setDisplayName(name);
+      } catch (e) {
+        console.log('Home profile name load error', e?.message || e);
+      }
+    };
     const loadStats = async () => {
       try {
         if (!token) return;
@@ -61,6 +72,7 @@ export default function HomeScreen({ navigation }) {
     };
     loadAvatar();
     loadStats();
+    loadProfileName();
     return () => { mounted = false; };
   }, [user?.id, token, user?.profile_image_updated_at]);
 
@@ -256,138 +268,8 @@ export default function HomeScreen({ navigation }) {
             Menú Principal
           </Text>
 
-          {/* Estadísticas de Usuarios */}
-          <View style={{
-            backgroundColor: 'white',
-            borderRadius: radius.lg,
-            padding: 16,
-            marginBottom: 16,
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.08,
-            shadowRadius: 8,
-            elevation: 3,
-            borderWidth: Platform.OS === 'web' ? 1 : 0,
-            borderColor: '#EEF2FF'
-          }}>
-            <Text style={{ fontSize: 16, fontWeight: '700', color: '#1F2937', marginBottom: 12 }}>
-              Estadísticas de usuarios
-            </Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-              <View style={{ width: '50%', paddingRight: 8, marginBottom: 12 }}>
-                <View style={{ backgroundColor: `${colors.purpleStart}10`, padding: 12, borderRadius: radius.md }}>
-                  <Text style={{ fontSize: 12, color: '#6B7280' }}>Total</Text>
-                  <Text style={{ fontSize: 20, fontWeight: '800', color: colors.purpleStart }}>{stats.total}</Text>
-                </View>
-              </View>
-              {Object.entries(stats.byRole).map(([role, count]) => (
-                <View key={role} style={{ width: '50%', paddingRight: 8, marginBottom: 12 }}>
-                  <View style={{ backgroundColor: '#F3F4F6', padding: 12, borderRadius: radius.md }}>
-                    <Text style={{ fontSize: 12, color: '#6B7280' }}>{role}</Text>
-                    <Text style={{ fontSize: 18, fontWeight: '700', color: '#111827' }}>{count}</Text>
-                  </View>
-                </View>
-              ))}
-            </View>
-          </View>
-
-          {/* Directorio: Candidatos y Empleadores */}
-          {Platform.OS === 'web' ? (
-            <div style={{
-              backgroundColor: 'white',
-              borderRadius: 16,
-              padding: 16,
-              marginBottom: 16,
-              boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-              border: '1px solid #EEF2FF'
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
-                <div style={{ width: '48%' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
-                    <span style={{ fontWeight: 700, color: '#1F2937', fontSize: 16 }}>Candidatos</span>
-                  </div>
-                  <div>
-                    {candidatesList.map((u) => (
-                      <div key={u.id} style={{
-                        border: '1px solid #E5E7EB',
-                        borderRadius: 12,
-                        padding: 12,
-                        marginBottom: 10,
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center'
-                      }}>
-                        <div>
-                          <div style={{ fontWeight: 700, color: '#111827' }}>{u.full_name || u.email}</div>
-                          <div style={{ fontSize: 12, color: '#6B7280' }}>{u.email}</div>
-                        </div>
-                        <div style={{ display: 'flex', gap: 8 }}>
-                          <button onClick={() => handleViewProfile(u)} style={{ padding: '8px 10px', borderRadius: 8, background: '#EEF2FF', color: '#1F2937', border: 'none' }}>Ver perfil</button>
-                          <button onClick={() => handleMessage(u)} style={{ padding: '8px 10px', borderRadius: 8, background: '#DBEAFE', color: '#1F2937', border: 'none' }}>Mensajes</button>
-                          <button onClick={() => handleHire(u)} style={{ padding: '8px 10px', borderRadius: 8, background: '#D1FAE5', color: '#065F46', border: 'none' }}>Contratar</button>
-                          {user?.role === 'admin' && (
-                            <button onClick={() => handleDeleteUser(u)} style={{ padding: '8px 10px', borderRadius: 8, background: '#FEE2E2', color: '#B91C1C', border: 'none' }}>Eliminar</button>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <div style={{ width: '48%' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
-                    <span style={{ fontWeight: 700, color: '#1F2937', fontSize: 16 }}>Empleadores</span>
-                  </div>
-                  <div>
-                    {employersList.map((u) => (
-                      <div key={u.id} style={{
-                        border: '1px solid #E5E7EB',
-                        borderRadius: 12,
-                        padding: 12,
-                        marginBottom: 10,
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center'
-                      }}>
-                        <div>
-                          <div style={{ fontWeight: 700, color: '#111827' }}>{u.full_name || u.email}</div>
-                          <div style={{ fontSize: 12, color: '#6B7280' }}>{u.email}</div>
-                        </div>
-                        <div style={{ display: 'flex', gap: 8 }}>
-                          <button onClick={() => handleViewProfile(u)} style={{ padding: '8px 10px', borderRadius: 8, background: '#EEF2FF', color: '#1F2937', border: 'none' }}>Ver perfil</button>
-                          <button onClick={() => handleMessage(u)} style={{ padding: '8px 10px', borderRadius: 8, background: '#DBEAFE', color: '#1F2937', border: 'none' }}>Mensajes</button>
-                          <button onClick={() => handleHire(u)} style={{ padding: '8px 10px', borderRadius: 8, background: '#FDE68A', color: '#92400E', border: 'none' }}>Contratar</button>
-                          {user?.role === 'admin' && (
-                            <button onClick={() => handleDeleteUser(u)} style={{ padding: '8px 10px', borderRadius: 8, background: '#FEE2E2', color: '#B91C1C', border: 'none' }}>Eliminar</button>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Modal Detalles (web) */}
-              {showDetails && selectedUser && (
-                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <div style={{ background: 'white', borderRadius: 12, padding: 20, width: 420, boxShadow: '0 10px 25px rgba(0,0,0,0.15)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                      <span style={{ fontWeight: 800, fontSize: 18, color: '#111827' }}>Detalles del usuario</span>
-                      <button onClick={() => setShowDetails(false)} style={{ background: '#EF4444', color: 'white', border: 'none', borderRadius: 8, padding: '6px 10px' }}>Cerrar</button>
-                    </div>
-                    <div style={{ marginBottom: 8 }}>
-                      <div style={{ fontWeight: 700, color: '#111827' }}>{selectedUser.full_name || selectedUser.email}</div>
-                      <div style={{ fontSize: 12, color: '#6B7280' }}>{selectedUser.email}</div>
-                      <div style={{ fontSize: 12, color: '#6B7280', marginTop: 6 }}>Rol: {selectedUser.role}</div>
-                    </div>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <button onClick={() => { handleMessage(selectedUser); setShowDetails(false); }} style={{ padding: '8px 10px', borderRadius: 8, background: '#DBEAFE', color: '#1F2937', border: 'none' }}>Mensajes</button>
-                      <button onClick={() => { handleHire(selectedUser); setShowDetails(false); }} style={{ padding: '8px 10px', borderRadius: 8, background: '#D1FAE5', color: '#065F46', border: 'none' }}>Contratar</button>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          ) : (
+          {/* Directorio: Candidatos y Empleadores (web eliminado) */}
+          {Platform.OS === 'web' ? null : (
             <View style={{
               backgroundColor: 'white',
               borderRadius: radius.lg,

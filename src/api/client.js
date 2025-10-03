@@ -37,6 +37,7 @@ export const api = {
   me: (token) => request('/api/users/me', { token }),
   
   // Users endpoints
+  createUser: (userData) => request('/api/users', { method: 'POST', body: userData }),
   getUsersForChat: (token) => request('/api/users/chat/list', { token }),
   getAllUsers: (token) => request('/api/users', { token }),
   getUserById: (id, token) => request(`/api/users/${id}`, { token }),
@@ -258,4 +259,11 @@ export const api = {
   },
   // Work experience endpoint
   getWorkExperience: (userId, token) => request(`/api/work_experience?user_id=${userId}`, { token }),
+
+  // Push notifications
+  registerPushToken: (tokenValue, deviceInfo, jwt) => request('/api/push/register', {
+    method: 'POST',
+    body: { token: tokenValue, device: deviceInfo },
+    token: jwt,
+  }),
 };

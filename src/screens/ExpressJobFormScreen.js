@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../api/client';
 import { colors, radius } from '../theme';
+import { labelUrgency } from '../services/text';
 
 export default function ExpressJobFormScreen({ route, navigation }) {
   const { user, token } = useAuth();
@@ -146,7 +147,7 @@ export default function ExpressJobFormScreen({ route, navigation }) {
           {['inmediato','hoy','esta_semana','flexible'].map(u => (
             <TouchableOpacity key={u} onPress={() => setUrgency(u)}
               style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: urgency === u ? colors.purpleStart : '#E5E7EB', backgroundColor: urgency === u ? `${colors.purpleStart}15` : 'white', marginRight: 8 }}>
-              <Text style={{ fontSize: 12, color: urgency === u ? colors.purpleStart : '#374151' }}>{u}</Text>
+              <Text style={{ fontSize: 12, color: urgency === u ? colors.purpleStart : '#374151' }}>{labelUrgency(u)}</Text>
             </TouchableOpacity>
           ))}
         </ScrollView>

@@ -50,3 +50,17 @@ export function normalizeTextSafe(input) {
   // Additional normalization (trim excessive whitespace)
   return typeof fixed === 'string' ? fixed.replace(/[\s\u00A0]+/g, ' ').trim() : fixed;
 }
+
+// Human-friendly label for urgency values
+export function labelUrgency(value) {
+  if (!value) return '';
+  const map = {
+    'inmediato': 'Inmediato',
+    'hoy': 'Hoy',
+    'esta_semana': 'Esta semana',
+    'flexible': 'Flexible'
+  };
+  if (map[value]) return map[value];
+  // Fallback: replace underscores and normalize
+  return normalizeTextSafe(String(value).replace(/_/g, ' '));
+}

@@ -1,12 +1,13 @@
 import { Buffer } from 'buffer';
 if (typeof global !== 'undefined' && !global.Buffer) { global.Buffer = Buffer; }
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { View } from 'react-native';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
+import { addMessageNotificationListeners } from './src/services/pushNotifications';
 import InicioScreen from './src/screens/InicioScreen';
 import LoginScreen from './src/screens/LoginScreen';
 import BienvenidaScreen from './src/screens/BienvenidaScreen';
@@ -29,14 +30,46 @@ const Stack = createNativeStackNavigator();
 
 function AppNavigator() {
   const { loading, isAuthenticated } = useAuth();
+  const navigationRef = useRef(null);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const unsubscribe = addMessageNotificationListeners(
+      undefined,
+      (response) => {
+        try {
+          const data = response?.notification?.request?.content?.data || {};
+          const senderId = data?.sender_id;
+          const conversationId = data?.conversation_id;
+          if (senderId) {
+            navigationRef.current?.navigate('Chat', { userId: senderId, userName: 'Usuario' });
+          } else if (conversationId) {
+            // Fallback: open chats list if we only know the conversation
+            navigationRef.current?.navigate('Chats');
+          }
+        } catch (e) {
+          // Ignore navigation errors
+        }
+      }
+    );
+    return () => { try { unsubscribe?.(); } catch {} };
+  }, [isAuthenticated]);
 
   if (loading) {
     return <View style={{ flex: 1, backgroundColor: '#fff' }} />;
   }
 
   return (
-    <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <NavigationContainer ref={navigationRef}>
+      <Stack.Navigator
+        screenOptions={{
+          headerShown: false,
+          animation: 'slide_from_right',
+          contentStyle: { backgroundColor: '#FFFFFF' },
+          gestureEnabled: true,
+          fullScreenGestureEnabled: true,
+        }}
+      >
         {isAuthenticated ? (
           <>
             <Stack.Screen name="Home" component={HomeScreen} />

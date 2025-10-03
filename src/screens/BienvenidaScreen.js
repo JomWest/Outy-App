@@ -8,8 +8,7 @@ import { colors, radius } from '../theme';
 export default function BienvenidaScreen({ navigation }) {
   const { user, token, logout } = useAuth();
   const [avatarUrl, setAvatarUrl] = useState(null);
-
-  const displayName = user?.full_name || (user?.email?.split('@')[0]) || 'Usuario';
+  const [displayName, setDisplayName] = useState((user?.full_name?.trim()) || (user?.name?.trim()) || 'Usuario');
 
   useEffect(() => {
     let mounted = true;
@@ -22,7 +21,18 @@ export default function BienvenidaScreen({ navigation }) {
         console.log('Bienvenida avatar load error', e?.message || e);
       }
     };
+    const loadProfileName = async () => {
+      try {
+        if (!user?.id || !token) return;
+        const profile = await api.getCandidateProfile(user.id, token);
+        const name = (profile?.full_name?.trim()) || null;
+        if (mounted && name) setDisplayName(name);
+      } catch (e) {
+        console.log('Bienvenida profile name load error', e?.message || e);
+      }
+    };
     loadAvatar();
+    loadProfileName();
     return () => { mounted = false; };
   }, [user?.id, token, user?.profile_image_updated_at]);
 

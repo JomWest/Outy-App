@@ -41,7 +41,15 @@ export default function ProfileScreen({ navigation }) {
     bio: '',
     profile_picture_url: '',
     resume_url: '',
-    phone_number: user?.phone_number || ''
+    phone_number: user?.phone_number || '',
+    website: '',
+    linkedin: '',
+    instagram: '',
+    tiktok: '',
+    skills: '',
+    city: '',
+    department: '',
+    country: ''
   });
 
   // File upload states
@@ -91,7 +99,15 @@ export default function ProfileScreen({ navigation }) {
           bio: profile.bio || '',
           profile_picture_url: profileImageUrl,
           resume_url: resumeUrl,
-          phone_number: user?.phone_number || ''
+          phone_number: user?.phone_number || '',
+          website: profile.website || '',
+          linkedin: profile.linkedin || '',
+          instagram: profile.instagram || '',
+          tiktok: profile.tiktok || '',
+          skills: Array.isArray(profile.skills) ? profile.skills.join(', ') : (profile.skills || ''),
+          city: profile.city || '',
+          department: profile.department || '',
+          country: profile.country || ''
         });
       } else {
         // If no profile exists, initialize with user data
@@ -101,7 +117,15 @@ export default function ProfileScreen({ navigation }) {
           bio: '',
           profile_picture_url: '',
           resume_url: '',
-          phone_number: user?.phone_number || ''
+          phone_number: user?.phone_number || '',
+          website: '',
+          linkedin: '',
+          instagram: '',
+          tiktok: '',
+          skills: '',
+          city: '',
+          department: '',
+          country: ''
         });
       }
     } catch (error) {
@@ -113,7 +137,15 @@ export default function ProfileScreen({ navigation }) {
         bio: '',
         profile_picture_url: '',
         resume_url: '',
-        phone_number: user?.phone_number || ''
+        phone_number: user?.phone_number || '',
+        website: '',
+        linkedin: '',
+        instagram: '',
+        tiktok: '',
+        skills: '',
+        city: '',
+        department: '',
+        country: ''
       });
     } finally {
       setLoading(false);
@@ -201,6 +233,13 @@ export default function ProfileScreen({ navigation }) {
         ...profileData,
         user_id: user.id
       };
+
+      // Trim URLs
+      ['website', 'linkedin', 'instagram', 'tiktok'].forEach(k => {
+        if (updatedProfile[k]) {
+          updatedProfile[k] = String(updatedProfile[k]).trim();
+        }
+      });
 
       // Remove file URL fields since we're now storing files as BLOBs
       delete updatedProfile.profile_picture_url;
@@ -889,6 +928,161 @@ export default function ProfileScreen({ navigation }) {
                   {profileData.bio.length >= 500 ? '⚠️ Límite alcanzado' : '⚠️ Cerca del límite'}
                 </Text>
               )}
+            </View>
+
+            {/* Extra Professional Info */}
+            <View style={{ marginTop: spacing.md }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: spacing.md }}>
+                <View style={{
+                  backgroundColor: 'rgba(139, 69, 255, 0.1)',
+                  padding: 8,
+                  borderRadius: radius.md,
+                  marginRight: spacing.sm
+                }}>
+                  <Ionicons name="briefcase" size={20} color={colors.purpleStart} />
+                </View>
+                <Text style={{ fontSize: 18, fontWeight: 'bold', color: colors.textPrimary }}>
+                  Información profesional adicional
+                </Text>
+              </View>
+
+              {/* Skills */}
+              <View style={{ marginBottom: spacing.md }}>
+                <Text style={[typography.label, { color: colors.textSecondary, fontSize: 14, fontWeight: '600', marginBottom: 8 }]}>Habilidades (separadas por coma)</Text>
+                <View style={{
+                  backgroundColor: colors.card,
+                  borderRadius: radius.lg,
+                  borderWidth: 2,
+                  borderColor: profileData.skills ? colors.purpleStart : '#E5E7EB',
+                  shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 2
+                }}>
+                  <TextInput
+                    value={profileData.skills}
+                    onChangeText={(value) => handleInputChange('skills', value)}
+                    placeholder="Ej: React, Node.js, UX, Comunicación"
+                    placeholderTextColor="#9CA3AF"
+                    style={{ paddingVertical: 18, paddingHorizontal: 18, fontSize: 17, fontWeight: '500', color: '#1F2937', letterSpacing: 0.5 }}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                </View>
+                {/* Chips preview */}
+                {profileData.skills ? (
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 8 }}>
+                    {profileData.skills.split(',').map(s => s.trim()).filter(Boolean).map((skill, idx) => (
+                      <View key={`${skill}-${idx}`} style={{
+                        backgroundColor: 'rgba(139, 69, 255, 0.08)',
+                        borderColor: colors.purpleStart,
+                        borderWidth: 1,
+                        paddingVertical: 6,
+                        paddingHorizontal: 10,
+                        borderRadius: 999,
+                        marginRight: 6,
+                        marginBottom: 6
+                      }}>
+                        <Text style={{ color: colors.purpleStart, fontWeight: '600' }}>{skill}</Text>
+                      </View>
+                    ))}
+                  </View>
+                ) : null}
+              </View>
+
+              {/* Website */}
+              <View style={{ marginBottom: spacing.md }}>
+                <Text style={[typography.label, { color: colors.textSecondary, fontSize: 14, fontWeight: '600', marginBottom: 8 }]}>Sitio web / Portafolio</Text>
+                <View style={{ backgroundColor: colors.card, borderRadius: radius.lg, borderWidth: 2, borderColor: profileData.website ? colors.purpleStart : '#E5E7EB', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 2 }}>
+                  <TextInput
+                    value={profileData.website}
+                    onChangeText={(value) => handleInputChange('website', value)}
+                    placeholder="Ej: https://miportafolio.com"
+                    placeholderTextColor="#9CA3AF"
+                    style={{ paddingVertical: 18, paddingHorizontal: 18, fontSize: 17, fontWeight: '500', color: '#1F2937', letterSpacing: 0.5 }}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    keyboardType="url"
+                  />
+                </View>
+              </View>
+
+              {/* LinkedIn */}
+              <View style={{ marginBottom: spacing.md }}>
+                <Text style={[typography.label, { color: colors.textSecondary, fontSize: 14, fontWeight: '600', marginBottom: 8 }]}>LinkedIn</Text>
+                <View style={{ backgroundColor: colors.card, borderRadius: radius.lg, borderWidth: 2, borderColor: profileData.linkedin ? colors.purpleStart : '#E5E7EB', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 2 }}>
+                  <TextInput
+                    value={profileData.linkedin}
+                    onChangeText={(value) => handleInputChange('linkedin', value)}
+                    placeholder="Ej: https://linkedin.com/in/usuario"
+                    placeholderTextColor="#9CA3AF"
+                    style={{ paddingVertical: 18, paddingHorizontal: 18, fontSize: 17, fontWeight: '500', color: '#1F2937', letterSpacing: 0.5 }}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    keyboardType="url"
+                  />
+                </View>
+              </View>
+
+              {/* Instagram */}
+              <View style={{ marginBottom: spacing.md }}>
+                <Text style={[typography.label, { color: colors.textSecondary, fontSize: 14, fontWeight: '600', marginBottom: 8 }]}>Instagram</Text>
+                <View style={{ backgroundColor: colors.card, borderRadius: radius.lg, borderWidth: 2, borderColor: profileData.instagram ? colors.purpleStart : '#E5E7EB', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 2 }}>
+                  <TextInput
+                    value={profileData.instagram}
+                    onChangeText={(value) => handleInputChange('instagram', value)}
+                    placeholder="Ej: https://instagram.com/usuario"
+                    placeholderTextColor="#9CA3AF"
+                    style={{ paddingVertical: 18, paddingHorizontal: 18, fontSize: 17, fontWeight: '500', color: '#1F2937', letterSpacing: 0.5 }}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    keyboardType="url"
+                  />
+                </View>
+              </View>
+
+              {/* TikTok */}
+              <View style={{ marginBottom: spacing.md }}>
+                <Text style={[typography.label, { color: colors.textSecondary, fontSize: 14, fontWeight: '600', marginBottom: 8 }]}>TikTok</Text>
+                <View style={{ backgroundColor: colors.card, borderRadius: radius.lg, borderWidth: 2, borderColor: profileData.tiktok ? colors.purpleStart : '#E5E7EB', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 2 }}>
+                  <TextInput
+                    value={profileData.tiktok}
+                    onChangeText={(value) => handleInputChange('tiktok', value)}
+                    placeholder="Ej: https://tiktok.com/@usuario"
+                    placeholderTextColor="#9CA3AF"
+                    style={{ paddingVertical: 18, paddingHorizontal: 18, fontSize: 17, fontWeight: '500', color: '#1F2937', letterSpacing: 0.5 }}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    keyboardType="url"
+                  />
+                </View>
+              </View>
+
+              {/* Ubicación: Ciudad y Departamento */}
+              <View style={{ marginBottom: spacing.md }}>
+                <Text style={[typography.label, { color: colors.textSecondary, fontSize: 14, fontWeight: '600', marginBottom: 8 }]}>Ubicación</Text>
+                <View style={{ flexDirection: 'row' }}>
+                  <View style={{ flex: 1, marginRight: 8, backgroundColor: colors.card, borderRadius: radius.lg, borderWidth: 2, borderColor: profileData.city ? colors.purpleStart : '#E5E7EB', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 2 }}>
+                    <TextInput
+                      value={profileData.city}
+                      onChangeText={(value) => handleInputChange('city', value)}
+                      placeholder="Ciudad"
+                      placeholderTextColor="#9CA3AF"
+                      style={{ paddingVertical: 18, paddingHorizontal: 18, fontSize: 17, fontWeight: '500', color: '#1F2937', letterSpacing: 0.5 }}
+                      autoCapitalize="words"
+                      autoCorrect={false}
+                    />
+                  </View>
+                  <View style={{ flex: 1, marginLeft: 8, backgroundColor: colors.card, borderRadius: radius.lg, borderWidth: 2, borderColor: profileData.department ? colors.purpleStart : '#E5E7EB', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 2 }}>
+                    <TextInput
+                      value={profileData.department}
+                      onChangeText={(value) => handleInputChange('department', value)}
+                      placeholder="Departamento"
+                      placeholderTextColor="#9CA3AF"
+                      style={{ paddingVertical: 18, paddingHorizontal: 18, fontSize: 17, fontWeight: '500', color: '#1F2937', letterSpacing: 0.5 }}
+                      autoCapitalize="words"
+                      autoCorrect={false}
+                    />
+                  </View>
+                </View>
+              </View>
             </View>
           </View>
 

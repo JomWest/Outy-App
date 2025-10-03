@@ -1,5 +1,6 @@
 import io from 'socket.io-client';
 import { CONFIG } from '../config';
+import { showHeadsUpMessage } from './pushNotifications';
 
 class SocketService {
   constructor() {
@@ -84,6 +85,17 @@ class SocketService {
         conversationListeners.forEach(callback => callback(message));
       }
       this.globalMessageListeners.forEach(callback => callback(message));
+
+      // Trigger heads-up local notification to emphasize latest message
+      try {
+        showHeadsUpMessage({
+          title: 'Nuevo mensaje',
+          body: message.message_text,
+          data: { conversation_id: message.conversation_id },
+        });
+      } catch (e) {
+        console.warn('Heads-up notification failed', e?.message || e);
+      }
     });
 
     // Listen for message status updates

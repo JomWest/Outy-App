@@ -5,8 +5,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { colors, radius } from '../theme';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../api/client';
-import { normalizeTextSafe } from '../services/text';
+import { normalizeTextSafe, labelUrgency } from '../services/text';
 import ConfirmModal from '../ui/ConfirmModal';
+import socketService from '../services/socketService';
 
 export default function ExpressJobDetailScreen({ route, navigation }) {
   const { user, token } = useAuth();
@@ -14,6 +15,7 @@ export default function ExpressJobDetailScreen({ route, navigation }) {
   const [applications, setApplications] = useState([]);
   const [loadingApps, setLoadingApps] = useState(false);
   const [sendingApp, setSendingApp] = useState(false);
+  const [interestSending, setInterestSending] = useState(false);
   const [proposedPrice, setProposedPrice] = useState('');
   const [estimatedTime, setEstimatedTime] = useState('');
   const [message, setMessage] = useState('');
@@ -118,11 +120,62 @@ export default function ExpressJobDetailScreen({ route, navigation }) {
   
       navigation.navigate('Chat', {
         userId: job.client_id,
-        userName: job.client_email ? job.client_email.split('@')[0] : 'Cliente',
+  // Preferir nombre real del cliente cuando esté disponible
+  userName: (job.client_full_name?.trim()) || (job.client_name?.trim()) || 'Cliente',
         userRole: 'cliente'
       });
     } catch (e) {
       Alert.alert('No se pudo abrir el chat', e.message || 'Intenta nuevamente.');
+    }
+  };
+
+  // Registrar interés explícito y enviar mensaje automático al publicador
+  const markInterestAndMessage = async () => {
+    if (!job?.id || isOwner) return;
+    try {
+      setInterestSending(true);
+      // Asegurar workerId cargado
+      if (!workerId) {
+        await resolveWorkerId();
+      }
+      if (!workerId) {
+        Alert.alert('No disponible', 'No se pudo identificar tu perfil de trabajador.');
+        return;
+      }
+
+      // Registrar interés si no existe
+      const alreadyInterested = Array.isArray(applications) && applications.some(app => app.worker_id === workerId);
+      if (!alreadyInterested && job?.status === 'abierto') {
+        const payload = {
+          express_job_id: job.id,
+          worker_id: workerId,
+          proposed_price: job?.budget_min || 1,
+          message: 'Estoy interesado',
+        };
+        try {
+          await api.createExpressJobApplication(payload, token);
+          await loadApplications();
+        } catch (e) {
+          console.warn('createExpressJobApplication failed', e?.message || e);
+        }
+      }
+
+      // Crear conversación y enviar mensaje automático
+      try {
+        const conv = await api.createConversation(user.id, job.client_id, token);
+        const conversationId = conv?.id || conv?.conversation_id || conv?.data?.id;
+        const text = `Hola, estoy interesado en tu anuncio exprés: ${job.title}`;
+        if (conversationId) {
+          await api.sendMessage(conversationId, text, token);
+          // Emitir por socket para respuesta inmediata si está conectado
+          socketService.sendMessage(conversationId, text);
+        }
+        Alert.alert('Interés enviado', 'Se notificó al publicador y se envió un mensaje.');
+      } catch (e) {
+        Alert.alert('Error', e?.message || 'No se pudo enviar el mensaje.');
+      }
+    } finally {
+      setInterestSending(false);
     }
   };
 
@@ -207,21 +260,31 @@ export default function ExpressJobDetailScreen({ route, navigation }) {
             </Text>
           )}
           {job?.urgency ? (
-            <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 6 }}>Urgencia: {normalizeTextSafe(job.urgency)}</Text>
+            <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 6 }}>Urgencia: {labelUrgency(job.urgency)}</Text>
           ) : null}
           {job?.status ? (
             <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 6 }}>Estado: {normalizeTextSafe(statusLabel(job.status))}</Text>
           ) : null}
-          <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 6 }}>Publicado por: {isOwner ? (user.email?.split('@')[0] || 'Tú') : normalizeTextSafe(job?.client_email ? job.client_email.split('@')[0] : 'Cliente')}</Text>
+  <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 6 }}>Publicado por: {isOwner ? ((user.full_name?.trim()) || (user.name?.trim()) || 'Tú') : normalizeTextSafe((job?.client_full_name?.trim()) || (job?.client_name?.trim()) || 'Cliente')}</Text>
         </View>
 
         {/* Acciones (solo no propietarios) */}
         {!isOwner && (
           <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'space-between', marginBottom: 8 }}>
-            <TouchableOpacity onPress={contactOwner} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
-              <Ionicons name="chatbubble-ellipses" size={20} color={colors.purpleStart} style={{ marginRight: 6 }} />
-              <Text style={{ color: colors.purpleStart, fontWeight: '600' }}>Escribirle</Text>
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <TouchableOpacity onPress={contactOwner} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                <Ionicons name="chatbubble-ellipses" size={20} color={colors.purpleStart} style={{ marginRight: 6 }} />
+                <Text style={{ color: colors.purpleStart, fontWeight: '600' }}>Escribirle</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={markInterestAndMessage}
+                disabled={interestSending}
+                style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, marginLeft: 12, opacity: interestSending ? 0.6 : 1 }}
+              >
+                <Ionicons name="heart" size={20} color={colors.purpleStart} style={{ marginRight: 6 }} />
+                <Text style={{ color: colors.purpleStart, fontWeight: '600' }}>{interestSending ? 'Enviando…' : 'Interesado'}</Text>
+              </TouchableOpacity>
+            </View>
             {canApply && (
               <TouchableOpacity disabled style={{ flexDirection: 'row', alignItems: 'center', opacity: 0.6, marginBottom: 8 }}>
                 <Ionicons name="checkmark-done" size={20} color="#6B7280" style={{ marginRight: 6 }} />
