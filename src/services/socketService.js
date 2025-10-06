@@ -11,6 +11,9 @@ class SocketService {
     this.isConnected = false;
     this.joinedRooms = new Set();
     this.statusGlobalListeners = new Set();
+    // Conversación actualmente abierta en la UI; sirve para suprimir notificaciones
+    // y evitar contar mensajes como no leídos cuando el usuario está dentro del chat
+    this.activeConversationId = null;
   }
 
   connect(token) {
@@ -86,15 +89,17 @@ class SocketService {
       }
       this.globalMessageListeners.forEach(callback => callback(message));
 
-      // Trigger heads-up local notification to emphasize latest message
-      try {
-        showHeadsUpMessage({
-          title: 'Nuevo mensaje',
-          body: message.message_text,
-          data: { conversation_id: message.conversation_id },
-        });
-      } catch (e) {
-        console.warn('Heads-up notification failed', e?.message || e);
+      // Notificar solo si el chat NO está abierto actualmente
+      if (this.activeConversationId !== message.conversation_id) {
+        try {
+          showHeadsUpMessage({
+            title: 'Nuevo mensaje',
+            body: message.message_text,
+            data: { conversation_id: message.conversation_id },
+          });
+        } catch (e) {
+          console.warn('Heads-up notification failed', e?.message || e);
+        }
       }
     });
 
@@ -220,6 +225,16 @@ class SocketService {
       }
       console.log(`Removed status listener for conversation: ${conversationId}`);
     }
+  }
+
+  // Conversación activa helpers
+  setActiveConversation(conversationId) {
+    this.activeConversationId = conversationId || null;
+    console.log('Active conversation set to:', this.activeConversationId);
+  }
+
+  getActiveConversationId() {
+    return this.activeConversationId || null;
   }
 }
 

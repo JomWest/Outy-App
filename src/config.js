@@ -10,10 +10,10 @@ function resolveApiUrl() {
 
   // For web, use current window host to avoid cross-origin and localhost issues
   if (isWeb && window.location && window.location.host) {
-    // Assume backend is on same host, port 4000
+    // Backend corre en 4004 en este entorno (según logs de servidor)
     const protocol = window.location.protocol || 'http:';
     const host = window.location.hostname;
-    const port = 4000;
+    const port = 4004;
     return `${protocol}//${host}:${port}`;
   }
 
@@ -29,8 +29,8 @@ function resolveApiUrl() {
     // ignore
   }
 
-  // Last resort fallback
-  return 'http://localhost:4000';
+  // Last resort fallback (coincidir con puerto del backend en dev)
+  return 'http://localhost:4004';
 }
 
 export const CONFIG = {

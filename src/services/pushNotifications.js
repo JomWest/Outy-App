@@ -50,6 +50,10 @@ export async function requestPermissionsAsync() {
  */
 export async function registerForPushNotificationsAsync() {
   try {
+    // En web, no registramos push (evita error VAPID si no está configurado)
+    if (Platform.OS === 'web') {
+      return null;
+    }
     const granted = await requestPermissionsAsync();
     if (!granted) return null;
 

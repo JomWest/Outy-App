@@ -203,15 +203,24 @@ export default function JobsScreen({ navigation }) {
           }}>
             Trabajos Disponibles
           </Text>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('MyApplications')}
+            style={{ marginLeft: 'auto', paddingHorizontal: 12, paddingVertical: 8, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 20 }}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Ionicons name="document-text-outline" size={18} color="white" />
+              <Text style={{ color: 'white', marginLeft: 6, fontWeight: '600' }}>Mis postulaciones</Text>
+            </View>
+          </TouchableOpacity>
         </View>
         
-        <Text style={{
-          fontSize: 16,
-          color: 'rgba(255,255,255,0.8)',
-          marginTop: 4
-        }}>
+          <Text style={{
+            fontSize: 16,
+            color: 'rgba(255,255,255,0.8)',
+            marginTop: 4
+          }}>
           {jobs.length} oportunidades encontradas
-        </Text>
+          </Text>
       </LinearGradient>
 
       {/* Jobs List */}

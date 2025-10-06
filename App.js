@@ -17,14 +17,21 @@ import ChatScreen from './src/screens/ChatScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
 import JobsScreen from './src/screens/JobsScreen';
 import JobDetailScreen from './src/screens/JobDetailScreen';
+import MyApplicationsScreen from './src/screens/MyApplicationsScreen';
 import ExpressJobsScreen from './src/screens/ExpressJobsScreen';
 import ExpressJobFormScreen from './src/screens/ExpressJobFormScreen';
 import ExpressJobDetailScreen from './src/screens/ExpressJobDetailScreen';
 import MyExpressAdsScreen from './src/screens/MyExpressAdsScreen';
+import MyExpressApplicationsScreen from './src/screens/MyExpressApplicationsScreen';
+import PendingExpressJobsScreen from './src/screens/PendingExpressJobsScreen';
 import CrearCuentaScreen from './src/screens/CrearCuentaScreen';
 import RecuperarContrasenaScreen from './src/screens/RecuperarContrasenaScreen';
 import VerificarEmailScreen from './src/screens/VerificarEmailScreen';
 import CandidateProfileScreen from './src/screens/CandidateProfileScreen';
+import AdminReportsScreen from './src/screens/AdminReportsScreen';
+import AdminExpressStatusScreen from './src/screens/AdminExpressStatusScreen';
+import NotificationsCenterScreen from './src/screens/NotificationsCenterScreen';
+import ExpressReviewDetailScreen from './src/screens/ExpressReviewDetailScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -78,6 +85,7 @@ function AppNavigator() {
             <Stack.Screen name="Profile" component={ProfileScreen} />
             <Stack.Screen name="Jobs" component={JobsScreen} />
             <Stack.Screen name="JobDetail" component={JobDetailScreen} />
+            <Stack.Screen name="MyApplications" component={MyApplicationsScreen} />
             <Stack.Screen name="Bienvenida" component={BienvenidaScreen} />
             <Stack.Screen name="CandidateProfile" component={CandidateProfileScreen} />
             {/* Express Jobs */}
@@ -85,6 +93,14 @@ function AppNavigator() {
             <Stack.Screen name="ExpressJobForm" component={ExpressJobFormScreen} />
             <Stack.Screen name="ExpressJobDetail" component={ExpressJobDetailScreen} />
             <Stack.Screen name="MyExpressAds" component={MyExpressAdsScreen} />
+            <Stack.Screen name="MyExpressApplications" component={MyExpressApplicationsScreen} />
+            <Stack.Screen name="PendingExpressJobs" component={PendingExpressJobsScreen} />
+            {/* Moderación */}
+            <Stack.Screen name="AdminReports" component={AdminReportsScreen} />
+            <Stack.Screen name="AdminExpressStatus" component={AdminExpressStatusScreen} />
+            <Stack.Screen name="ExpressReviewDetail" component={ExpressReviewDetailScreen} />
+            {/* Centro de notificaciones */}
+            <Stack.Screen name="NotificationsCenter" component={NotificationsCenterScreen} />
           </>
         ) : (
           <>

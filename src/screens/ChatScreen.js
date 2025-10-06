@@ -11,8 +11,12 @@ import {
   Alert,
   ActivityIndicator,
   StyleSheet,
-  Image
+  Image,
+  Linking,
+  Modal
 } from 'react-native';
+import * as DocumentPicker from 'expo-document-picker';
+import { Video } from 'expo-av';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../context/AuthContext';
@@ -33,6 +37,8 @@ export default function ChatScreen({ route, navigation }) {
   const [myAvatarUrl, setMyAvatarUrl] = useState(null);
   // Nombre mostrado en el header: preferir nombre de BD sobre correo
   const [displayName, setDisplayName] = useState(userName);
+  // Moderación: estado de carga para reportes/bloqueos
+  const [moderationLoading, setModerationLoading] = useState(false);
 
   useEffect(() => {
     initializeChat();
@@ -52,6 +58,10 @@ export default function ChatScreen({ route, navigation }) {
       socketService.joinConversation(conversationId);
       socketService.addMessageListener(conversationId, handleNewMessage);
       socketService.addMessageStatusListener(handleMessageStatusUpdate);
+      // Marcar la conversación como activa para evitar notificaciones y contadores
+      try {
+        socketService.setActiveConversation(conversationId);
+      } catch {}
     }
 
     return () => {
@@ -59,6 +69,10 @@ export default function ChatScreen({ route, navigation }) {
         socketService.removeMessageListener(conversationId, handleNewMessage);
         socketService.removeMessageStatusListener(handleMessageStatusUpdate);
         socketService.leaveConversation(conversationId);
+        // Limpiar conversación activa al salir
+        try {
+          socketService.setActiveConversation(null);
+        } catch {}
       }
     };
   }, [conversationId]);
@@ -278,6 +292,71 @@ export default function ChatScreen({ route, navigation }) {
     setMessages(simulatedMessages);
   };
 
+  // ===== Moderación: Reportar y Bloquear usuarios =====
+  const handleReportUser = async () => {
+    try {
+      if (!token || !userId) return;
+      Alert.alert(
+        'Reportar usuario',
+        '¿Quieres reportar a este usuario? Se enviará a moderación.',
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          {
+            text: 'Reportar',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                setModerationLoading(true);
+                await client.reportUser(userId, 'Reporte desde chat', token);
+                Alert.alert('Enviado', 'El reporte fue creado. Gracias por avisar.');
+              } catch (e) {
+                Alert.alert('Error', e?.message || 'No se pudo enviar el reporte');
+              } finally {
+                setModerationLoading(false);
+              }
+            }
+          }
+        ]
+      );
+    } catch (e) {
+      Alert.alert('Error', e?.message || 'No se pudo reportar');
+    }
+  };
+
+  const handleBlockUser = async () => {
+    try {
+      if (user?.role !== 'super_admin' && user?.role !== 'admin') {
+        Alert.alert('No autorizado', 'Solo administradores pueden bloquear usuarios.');
+        return;
+      }
+      if (!token || !userId) return;
+      Alert.alert(
+        'Bloquear usuario',
+        '¿Bloquear a este usuario? No podrá interactuar mientras esté bloqueado.',
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          {
+            text: 'Bloquear',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                setModerationLoading(true);
+                await client.blockUser(userId, 'Bloqueo desde chat', token);
+                Alert.alert('Listo', 'El usuario fue bloqueado.');
+              } catch (e) {
+                Alert.alert('Error', e?.message || 'No se pudo bloquear');
+              } finally {
+                setModerationLoading(false);
+              }
+            }
+          }
+        ]
+      );
+    } catch (e) {
+      Alert.alert('Error', e?.message || 'No se pudo bloquear');
+    }
+  };
+
   const sendMessage = async () => {
     if (!messageText.trim() || !conversationId) return;
 
@@ -338,6 +417,91 @@ export default function ChatScreen({ route, navigation }) {
     }
   };
 
+  // Adjuntar archivo (imágenes o documentos) y enviarlo como mensaje
+  const handleAttachPress = async () => {
+    try {
+      // Abrir selector de documentos (también permite imágenes)
+      const result = await DocumentPicker.getDocumentAsync({
+        type: '*/*',
+        copyToCacheDirectory: true,
+        multiple: false
+      });
+
+      // Manejo de diferentes formatos de resultado según plataforma/versión
+      const canceled = result.canceled || result.type === 'cancel';
+      if (canceled) return;
+
+      const asset = result.assets ? result.assets[0] : result;
+      const uri = asset.uri;
+      const name = asset.name || uri?.split('/')?.pop() || `archivo_${Date.now()}`;
+      const mimeType = asset.mimeType || asset.type || 'application/octet-stream';
+      const size = asset.size;
+
+      if (!uri) {
+        Alert.alert('Error', 'No se pudo obtener el archivo seleccionado.');
+        return;
+      }
+
+      setIsSending(true);
+
+      const formData = new FormData();
+      if (typeof uri === 'string' && (uri.startsWith('blob:') || uri.startsWith('data:'))) {
+        const blobResp = await fetch(uri);
+        const blob = await blobResp.blob();
+        formData.append('file', blob, name);
+      } else {
+        formData.append('file', {
+          uri,
+          name,
+          type: mimeType
+        });
+      }
+      formData.append('type', 'figan');
+
+      // Mensaje temporal optimista
+      const tempId = `temp_attach_${Date.now()}`;
+      const tempToken = `[[FILE:uploading|${name}|${mimeType}]]`;
+      const tempMessage = {
+        id: tempId,
+        message_text: tempToken,
+        sender_id: user.id,
+        sender_email: user.email,
+        sender_role: user.role,
+        created_at: new Date().toISOString(),
+        isTemporary: true,
+        status: 'sent'
+      };
+      setMessages(prev => [...prev, tempMessage]);
+
+      // Subir archivo
+      const uploadRes = await client.uploadFile(formData, token, 'figan');
+      const fileUrl = uploadRes?.url;
+      const finalToken = `[[FILE:${fileUrl}|${name}|${mimeType}]]`;
+
+      if (!fileUrl) {
+        // Remover temporal si falla
+        setMessages(prev => prev.filter(m => m.id !== tempId));
+        Alert.alert('Error', 'No se pudo subir el archivo.');
+        return;
+      }
+
+      // Enviar el token como texto del mensaje
+      const response = await client.sendMessage(conversationId, finalToken, token);
+      if (response) {
+        // El mensaje real llegará por Socket.IO; eliminamos el temporal
+        setMessages(prev => prev.filter(m => m.id !== tempId));
+      } else {
+        setMessages(prev => prev.filter(m => m.id !== tempId));
+        Alert.alert('Error', 'No se pudo enviar el adjunto.');
+      }
+    } catch (error) {
+      console.error('Error attaching file:', error);
+      Alert.alert('Error', error?.message || 'No se pudo adjuntar el archivo');
+    } finally {
+      setIsSending(false);
+    }
+  };
+
   const formatTime = (timestamp) => {
     const date = new Date(timestamp);
     return date.toLocaleTimeString('es-ES', { 
@@ -375,10 +539,132 @@ export default function ChatScreen({ route, navigation }) {
     return name.substring(0, 2).toUpperCase();
   };
 
+  const confirmDeleteMessage = (messageId) => {
+    Alert.alert(
+      'Eliminar mensaje',
+      '¿Quieres eliminar este mensaje? Esta acción no se puede deshacer.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Eliminar', style: 'destructive', onPress: () => handleDeleteMessage(messageId) }
+      ]
+    );
+  };
+
+  const handleDeleteMessage = async (messageId) => {
+    try {
+      if (!conversationId) return;
+      // Optimista: quitar de la UI
+      setMessages(prev => prev.filter(m => m.id !== messageId));
+      await client.deleteMessage(conversationId, messageId, token);
+    } catch (e) {
+      Alert.alert('No se pudo eliminar', e?.message || 'Intenta nuevamente');
+      // Recuperar estado si falla (idealmente recargar)
+      await loadMessages(conversationId);
+    }
+  };
+
+  const handleDeleteConversation = () => {
+    Alert.alert(
+      'Eliminar chat',
+      '¿Eliminar toda la conversación? Se borrarán todos los mensajes.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Eliminar', style: 'destructive', onPress: async () => {
+          try {
+            if (!conversationId) return;
+            await client.deleteConversation(conversationId, token);
+            navigation.goBack();
+          } catch (e) {
+            Alert.alert('No se pudo eliminar el chat', e?.message || 'Intenta nuevamente');
+          }
+        }}
+      ]
+    );
+  };
+
+  // Detecta el marcador especial para calificación de trabajo exprés dentro del texto
+  const parseRateExpressJobToken = (text) => {
+    if (!text) return null;
+    const m = /\[\[RATE_EXPRESS_JOB:(\d+)(?::(\d+))?\]\]/.exec(text);
+    if (!m) return null;
+    return { jobId: Number(m[1]), workerId: m[2] ? Number(m[2]) : null };
+  };
+
+  // Inferir MIME por extensión si no viene en el token
+  const inferMimeFromPath = (urlOrName) => {
+    if (!urlOrName) return undefined;
+    const lower = urlOrName.toLowerCase();
+    const ext = lower.split('?')[0].split('#')[0].split('.').pop();
+    switch (ext) {
+      case 'jpg':
+      case 'jpeg':
+        return 'image/jpeg';
+      case 'png':
+        return 'image/png';
+      case 'gif':
+        return 'image/gif';
+      case 'webp':
+        return 'image/webp';
+      case 'bmp':
+        return 'image/bmp';
+      case 'mp4':
+        return 'video/mp4';
+      case 'mov':
+        return 'video/quicktime';
+      case 'webm':
+        return 'video/webm';
+      case 'm4v':
+        return 'video/x-m4v';
+      case 'ogg':
+      case 'ogv':
+        return 'video/ogg';
+      case 'avi':
+        return 'video/x-msvideo';
+      case 'mkv':
+        return 'video/x-matroska';
+      case 'pdf':
+        return 'application/pdf';
+      default:
+        return undefined;
+    }
+  };
+
+  // Parse de token de archivo: [[FILE:url|name|mime]] o [[FILE:url|name]]
+  const parseFileToken = (text) => {
+    if (!text) return null;
+    // Formato con MIME explícito
+    let m = /\[\[FILE:([^\|\]]+)\|([^\|\]]+)\|([^\]]+)\]\]/.exec(text);
+    if (m) return { url: m[1], name: m[2], mime: m[3] };
+    // Formato antiguo sin MIME
+    m = /\[\[FILE:([^\|\]]+)\|([^\]]+)\]\]/.exec(text);
+    if (m) {
+      const inferred = inferMimeFromPath(m[1]) || inferMimeFromPath(m[2]) || 'application/octet-stream';
+      return { url: m[1], name: m[2], mime: inferred };
+    }
+    return null;
+  };
+
+  const handleRateExpressJob = async (jobId) => {
+    try {
+      const job = await client.getExpressJobById(jobId, token);
+      navigation.navigate('ExpressJobDetail', { job });
+    } catch (e) {
+      Alert.alert('No se pudo abrir el detalle', e?.message || 'Intenta nuevamente.');
+    }
+  };
+
   const renderMessage = (message) => {
     const isOwn = message.sender_id === user.id;
-    const senderName = message.sender_email?.split('@')[0] || 'Usuario';
+    const senderName = (message.sender_full_name?.trim())
+      || (message.sender_name?.trim())
+      || userName
+      || (message.sender_email?.split('@')[0])
+      || 'Usuario';
     const userTypeInfo = getUserTypeInfo(message.sender_role || 'candidate');
+
+    const tokenInfo = parseRateExpressJobToken(message.message_text);
+    const fileToken = parseFileToken(message.message_text);
+    const cleanedText = tokenInfo ? message.message_text.replace(/\[\[RATE_EXPRESS_JOB:[^\]]+\]\]/, '').trim() : message.message_text;
 
     return (
       <View
@@ -430,22 +716,101 @@ export default function ChatScreen({ route, navigation }) {
             </Text>
           )}
           
-          <View style={{
-            backgroundColor: isOwn ? colors.purpleStart : '#F3F4F6',
-            borderRadius: radius.lg,
-            paddingHorizontal: 16,
-            paddingVertical: 12,
-            borderBottomRightRadius: isOwn ? 4 : radius.lg,
-            borderBottomLeftRadius: isOwn ? radius.lg : 4
-          }}>
-            <Text style={{
-              fontSize: 16,
-              color: isOwn ? 'white' : '#1F2937',
-              lineHeight: 22
-            }}>
-              {message.message_text}
-            </Text>
-          </View>
+          <TouchableOpacity
+            onLongPress={isOwn ? () => confirmDeleteMessage(message.id) : undefined}
+            activeOpacity={0.9}
+            style={{
+              backgroundColor: isOwn ? colors.purpleStart : '#F3F4F6',
+              borderRadius: radius.lg,
+              paddingHorizontal: 16,
+              paddingVertical: 12,
+              borderBottomRightRadius: isOwn ? 4 : radius.lg,
+              borderBottomLeftRadius: isOwn ? radius.lg : 4
+            }}
+          >
+            {fileToken ? (
+              <View>
+                {fileToken.mime?.startsWith('image/') ? (
+                  <TouchableOpacity onPress={() => setImagePreview({ url: fileToken.url, name: fileToken.name })}>
+                    <Image 
+                      source={{ uri: encodeURI(fileToken.url) }} 
+                      style={{ width: 240, height: 240, borderRadius: 12 }}
+                      resizeMode="cover"
+                    />
+                    <Text style={{
+                      marginTop: 8,
+                      fontSize: 12,
+                      color: isOwn ? 'white' : '#4B5563'
+                    }} numberOfLines={1}>{fileToken.name}</Text>
+                  </TouchableOpacity>
+                ) : fileToken.mime?.startsWith('video/') ? (
+                  <View>
+                    {Platform.OS === 'web' ? (
+                      // En web, usar el elemento HTML5 <video> para reproducir el archivo tal cual se envió
+                      <video
+                        controls
+                        preload="metadata"
+                        playsInline
+                        style={{ width: 240, height: 240, borderRadius: 12 }}
+                      >
+                        <source src={encodeURI(fileToken.url)} type={fileToken.mime || undefined} />
+                      </video>
+                    ) : (
+                      // En nativo, usar expo-av sin alterar el formato original
+                      <Video
+                        source={{ uri: encodeURI(fileToken.url) }}
+                        style={{ width: 240, height: 240, borderRadius: 12 }}
+                        useNativeControls
+                        resizeMode="contain"
+                      />
+                    )}
+                    <Text style={{
+                      marginTop: 8,
+                      fontSize: 12,
+                      color: isOwn ? 'white' : '#4B5563'
+                    }} numberOfLines={1}>{fileToken.name}</Text>
+                  </View>
+                ) : (
+                  <TouchableOpacity 
+                    onPress={() => Linking.openURL(fileToken.url)}
+                    style={{ flexDirection: 'row', alignItems: 'center' }}
+                  >
+                    <Ionicons name="document-outline" size={20} color={isOwn ? 'white' : '#4B5563'} />
+                    <Text style={{
+                      marginLeft: 8,
+                      fontSize: 14,
+                      color: isOwn ? 'white' : '#1F2937'
+                    }} numberOfLines={1}>{fileToken.name}</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            ) : (
+              <Text style={{
+                fontSize: 16,
+                color: isOwn ? 'white' : '#1F2937',
+                lineHeight: 22
+              }}>
+                {cleanedText || 'El trabajador marcó el trabajo como terminado.'}
+              </Text>
+            )}
+          </TouchableOpacity>
+
+          {/* Botón especial para calificar trabajo si el mensaje contiene el marcador */}
+          {tokenInfo && !isOwn && (
+            <View style={{ marginTop: 8, paddingHorizontal: 4 }}>
+              <TouchableOpacity
+                onPress={() => handleRateExpressJob(tokenInfo.jobId)}
+                style={{
+                  backgroundColor: '#F59E0B',
+                  borderRadius: 10,
+                  paddingVertical: 10,
+                  alignItems: 'center'
+                }}
+              >
+                <Text style={{ color: 'white', fontWeight: '700' }}>Calificar trabajo</Text>
+              </TouchableOpacity>
+            </View>
+          )}
           
           <Text style={{
             fontSize: 11,
@@ -495,10 +860,63 @@ export default function ChatScreen({ route, navigation }) {
     );
   };
 
+  const [imagePreview, setImagePreview] = useState(null);
   const userTypeInfo = getUserTypeInfo(userRole);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#F8FAFC' }}>
+      {/* Image Preview Modal */}
+      <Modal
+        visible={!!imagePreview}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setImagePreview(null)}
+      >
+        <View style={{
+          flex: 1,
+          backgroundColor: 'rgba(0,0,0,0.85)',
+          justifyContent: 'center',
+          alignItems: 'center',
+          paddingHorizontal: 16
+        }}>
+          {imagePreview?.url ? (
+            <Image
+              source={{ uri: encodeURI(imagePreview.url) }}
+              style={{ width: '92%', height: '72%', borderRadius: 12 }}
+              resizeMode="contain"
+            />
+          ) : null}
+          <View style={{ flexDirection: 'row', marginTop: 16 }}>
+            <TouchableOpacity
+              onPress={() => setImagePreview(null)}
+              style={{
+                backgroundColor: 'rgba(255,255,255,0.15)',
+                paddingVertical: 10,
+                paddingHorizontal: 14,
+                borderRadius: 24,
+                marginRight: 8,
+                borderWidth: 1,
+                borderColor: 'rgba(255,255,255,0.35)'
+              }}
+            >
+              <Ionicons name="close" size={22} color="white" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => imagePreview?.url && Linking.openURL(imagePreview.url)}
+              style={{
+                backgroundColor: 'rgba(255,255,255,0.15)',
+                paddingVertical: 10,
+                paddingHorizontal: 14,
+                borderRadius: 24,
+                borderWidth: 1,
+                borderColor: 'rgba(255,255,255,0.35)'
+              }}
+            >
+              <Ionicons name="open-outline" size={22} color="white" />
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
       {/* Header */}
       <LinearGradient
         colors={[colors.purpleStart, colors.purpleEnd]}
@@ -583,6 +1001,42 @@ export default function ChatScreen({ route, navigation }) {
 
         
 
+          {/* Acciones de moderación en el header */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: 8 }}>
+            <TouchableOpacity
+              onPress={handleReportUser}
+              disabled={moderationLoading}
+              style={{
+                backgroundColor: 'rgba(255,255,255,0.18)',
+                padding: 8,
+                borderRadius: radius.md,
+                borderWidth: 1,
+                borderColor: 'rgba(255,255,255,0.35)',
+                marginRight: 8
+              }}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="flag-outline" size={20} color="white" />
+            </TouchableOpacity>
+            {user?.role === 'super_admin' && (
+              <TouchableOpacity
+                onPress={handleBlockUser}
+                disabled={moderationLoading}
+                style={{
+                  backgroundColor: 'rgba(255,255,255,0.18)',
+                  padding: 8,
+                  borderRadius: radius.md,
+                  borderWidth: 1,
+                  borderColor: 'rgba(255,255,255,0.35)',
+                  marginRight: 8
+                }}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="close-circle-outline" size={20} color="white" />
+              </TouchableOpacity>
+            )}
+          </View>
+
           <TouchableOpacity
             style={{
               backgroundColor: 'rgba(255,255,255,0.18)',
@@ -592,6 +1046,7 @@ export default function ChatScreen({ route, navigation }) {
               borderColor: 'rgba(255,255,255,0.35)'
             }}
             activeOpacity={0.85}
+            onPress={handleDeleteConversation}
           >
             <Ionicons name="ellipsis-vertical" size={20} color="white" />
           </TouchableOpacity>
@@ -655,6 +1110,7 @@ export default function ChatScreen({ route, navigation }) {
             alignItems: 'flex-end'
           }}>
             <TouchableOpacity
+              onPress={handleAttachPress}
               style={{
                 backgroundColor: '#F3F4F6',
                 padding: 12,

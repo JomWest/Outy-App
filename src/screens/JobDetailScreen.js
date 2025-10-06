@@ -21,8 +21,21 @@ export default function JobDetailScreen({ route, navigation }) {
   const { user, token } = useAuth();
   const [loading, setLoading] = useState(false);
   const [applying, setApplying] = useState(false);
+  const [interestSending, setInterestSending] = useState(false);
   const [hasApplied, setHasApplied] = useState(false);
   const [coverLetter, setCoverLetter] = useState('');
+  const [reportReason, setReportReason] = useState('');
+  const [selectedReason, setSelectedReason] = useState(null);
+  const [customReason, setCustomReason] = useState('');
+  const predefinedReasons = [
+    'Contenido inapropiado',
+    'Fraude o estafa',
+    'Información falsa',
+    'Lenguaje ofensivo',
+    'Actividad sospechosa',
+    'Spam o publicidad',
+    'Violación de reglas'
+  ];
   const [showApplicationModal, setShowApplicationModal] = useState(false);
   const [companyProfile, setCompanyProfile] = useState(null);
   const [categories, setCategories] = useState([]);
@@ -103,7 +116,8 @@ export default function JobDetailScreen({ route, navigation }) {
       });
       
       if (response.ok) {
-        const applications = await response.json();
+        const data = await response.json();
+        const applications = Array.isArray(data) ? data : (data.items || []);
         setHasApplied(applications.length > 0);
       }
     } catch (error) {
@@ -153,6 +167,31 @@ export default function JobDetailScreen({ route, navigation }) {
     }
   };
 
+  // Reportar anuncio de trabajo
+  const reportAd = async () => {
+    try {
+      if (!token || !job?.id) return;
+      const reasonToSend = (selectedReason && selectedReason !== 'Otro')
+        ? selectedReason
+        : (customReason?.trim() || reportReason?.trim() || 'Reporte desde detalle de trabajo');
+      const res = await fetch(`${CONFIG.API_URL}/api/moderation/report-ad`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ ad_id: job.id, ad_type: 'job', reason: reasonToSend })
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || res.statusText);
+      }
+      Alert.alert('Reporte enviado', 'Gracias por avisar. Revisaremos este anuncio.');
+    } catch (e) {
+      Alert.alert('Error', e?.message || 'No se pudo enviar el reporte');
+    }
+  };
+
   const handleContactEmployer = async () => {
     try {
       // Crear conversación con el empleador
@@ -180,6 +219,69 @@ export default function JobDetailScreen({ route, navigation }) {
     } catch (error) {
       console.error('Error creating conversation:', error);
       Alert.alert('Error', 'No se pudo iniciar la conversación. Inténtalo de nuevo.');
+    }
+  };
+
+  // Nuevo: flujo "Me interesa" para cualquier usuario
+  const handleInterested = async () => {
+    try {
+      setInterestSending(true);
+      // 1) Crear postulación si no existe todavía
+      if (!hasApplied) {
+        const resp = await fetch(`${CONFIG.API_URL}/api/job_applications`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            job_id: job.id,
+            candidate_id: user.id,
+            cover_letter: coverLetter || 'Estoy interesado',
+            status: 'enviada'
+          })
+        });
+        if (!resp.ok) {
+          throw new Error('No se pudo registrar tu interés (postulación)');
+        }
+        setHasApplied(true);
+      }
+
+      // 2) Crear conversación y enviar mensaje inicial
+      const convResp = await fetch(`${CONFIG.API_URL}/api/conversations/create`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ user1Id: user.id, user2Id: job.company_id })
+      });
+      if (!convResp.ok) throw new Error('No se pudo crear la conversación');
+      const conversation = await convResp.json();
+      const conversationId = conversation?.id || conversation?.conversation_id || conversation?.data?.id;
+
+      if (conversationId) {
+        // Mensaje de interés
+        await fetch(`${CONFIG.API_URL}/api/conversations/${conversationId}/messages`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ message_text: `Hola, estoy interesado en el trabajo: ${job.title}` })
+        }).catch(() => {});
+
+        // Navegar al chat
+        navigation.navigate('Chat', { 
+          conversationId,
+          otherUserName: companyProfile?.company_name || 'Empleador' 
+        });
+      }
+    } catch (e) {
+      console.error('Error en Me interesa:', e);
+      Alert.alert('Error', e.message || 'No se pudo registrar tu interés');
+    } finally {
+      setInterestSending(false);
     }
   };
 
@@ -242,6 +344,9 @@ export default function JobDetailScreen({ route, navigation }) {
           }} numberOfLines={1}>
             {job.title}
           </Text>
+          <TouchableOpacity onPress={reportAd} style={{ padding: 6, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.2)' }}>
+            <Ionicons name="flag-outline" size={20} color="white" />
+          </TouchableOpacity>
         </View>
       </LinearGradient>
 
@@ -266,6 +371,39 @@ export default function JobDetailScreen({ route, navigation }) {
           }}>
             {job.title}
           </Text>
+          {/* Motivo del reporte */}
+          <View style={{ marginTop: 12 }}>
+            <Text style={{ fontSize: 12, color: '#6B7280', marginBottom: 6 }}>Motivo del reporte</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+              {predefinedReasons.map((r) => (
+                <TouchableOpacity
+                  key={r}
+                  onPress={() => setSelectedReason(r)}
+                  style={{ paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8, borderWidth: 1, borderColor: selectedReason === r ? colors.purpleStart : '#E5E7EB', backgroundColor: selectedReason === r ? 'rgba(109,40,217,0.08)' : 'white', marginRight: 8, marginBottom: 8 }}
+                >
+                  <Text style={{ color: selectedReason === r ? colors.purpleStart : '#111827', fontSize: 12 }}>{r}</Text>
+                </TouchableOpacity>
+              ))}
+              <TouchableOpacity
+                onPress={() => setSelectedReason('Otro')}
+                style={{ paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8, borderWidth: 1, borderColor: selectedReason === 'Otro' ? colors.purpleStart : '#E5E7EB', backgroundColor: selectedReason === 'Otro' ? 'rgba(109,40,217,0.08)' : 'white', marginRight: 8, marginBottom: 8 }}
+              >
+                <Text style={{ color: selectedReason === 'Otro' ? colors.purpleStart : '#111827', fontSize: 12 }}>Otro</Text>
+              </TouchableOpacity>
+            </View>
+            {selectedReason === 'Otro' && (
+              <TextInput
+                value={customReason}
+                onChangeText={setCustomReason}
+                placeholder="Describe por qué reportas este anuncio"
+                placeholderTextColor="#9CA3AF"
+                style={{ borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 8, padding: 10, fontSize: 14, color: '#111827' }}
+              />
+            )}
+            <TouchableOpacity onPress={reportAd} style={{ marginTop: 10, backgroundColor: colors.purpleStart, paddingVertical: 10, borderRadius: 8, alignItems: 'center' }}>
+              <Text style={{ color: 'white', fontWeight: '600' }}>Reportar anuncio</Text>
+            </TouchableOpacity>
+          </View>
           
           <Text style={{
             fontSize: 18,
@@ -520,6 +658,39 @@ export default function JobDetailScreen({ route, navigation }) {
             }}>
               Contactar
             </Text>
+          </TouchableOpacity>
+
+          {/* Nuevo: Me interesa */}
+          <TouchableOpacity
+            onPress={handleInterested}
+            disabled={interestSending}
+            style={{
+              flex: 1,
+              backgroundColor: '#FFF7ED',
+              paddingVertical: 16,
+              borderRadius: 12,
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderWidth: 1,
+              borderColor: '#FED7AA'
+            }}
+          >
+            {interestSending ? (
+              <ActivityIndicator size="small" color={colors.purpleStart} />
+            ) : (
+              <>
+                <Ionicons name="heart" size={20} color={colors.purpleStart} />
+                <Text style={{
+                  fontSize: 16,
+                  fontWeight: '600',
+                  color: colors.purpleStart,
+                  marginLeft: 8
+                }}>
+                  Me interesa
+                </Text>
+              </>
+            )}
           </TouchableOpacity>
 
           <TouchableOpacity

@@ -7,10 +7,15 @@ async function request(path, { method = 'GET', body, token } = {}) {
   const headers = { 'Content-Type': 'application/json' };
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
+  // Sanear el cuerpo: eliminar claves con undefined para evitar errores de validación
+  const cleanBody = body && typeof body === 'object'
+    ? Object.fromEntries(Object.entries(body).filter(([_, v]) => v !== undefined))
+    : body;
+
   const res = await fetch(`${API_URL}${path}`, {
     method,
     headers,
-    body: body ? JSON.stringify(body) : undefined,
+    body: cleanBody ? JSON.stringify(cleanBody) : undefined,
   });
 
   let data = null;
@@ -41,6 +46,8 @@ export const api = {
   getUsersForChat: (token) => request('/api/users/chat/list', { token }),
   getAllUsers: (token) => request('/api/users', { token }),
   getUserById: (id, token) => request(`/api/users/${id}`, { token }),
+  // Company profile (empleador)
+  getCompanyProfile: (userId, token) => request(`/api/company_profiles/${userId}`, { token }),
   
   // Conversations endpoints
   getUserConversations: (userId, token) => request(`/api/conversations/user/${userId}`, { token }),
@@ -54,6 +61,14 @@ export const api = {
   sendMessage: (conversationId, messageText, token) => request(`/api/conversations/${conversationId}/messages`, {
     method: 'POST',
     body: { message_text: messageText },
+    token
+  }),
+  deleteMessage: (conversationId, messageId, token) => request(`/api/conversations/${conversationId}/messages/${messageId}`, {
+    method: 'DELETE',
+    token
+  }),
+  deleteConversation: (conversationId, token) => request(`/api/conversations/${conversationId}`, {
+    method: 'DELETE',
     token
   }),
   
@@ -99,6 +114,22 @@ export const api = {
 
   // Listar perfiles de trabajadores (paginado)
   getWorkerProfilesPaged: (page = 1, pageSize = 500, token) => request(`/api/worker_profiles?page=${page}&pageSize=${pageSize}`, { token }),
+  // Crear perfil de trabajador
+  createWorkerProfile: (profileData, token) => request('/api/worker_profiles', { method: 'POST', body: profileData, token }),
+
+  // Buscar trabajadores con filtros (destacados: verificados y disponibles, ordenados por rating)
+  searchWorkers: ({ trade_category_id, location_id, min_rating, available_only, verified_only, max_hourly_rate, search_text } = {}, token) => {
+    const params = new URLSearchParams();
+    if (trade_category_id) params.append('trade_category_id', trade_category_id);
+    if (location_id) params.append('location_id', location_id);
+    if (min_rating) params.append('min_rating', min_rating);
+    if (available_only !== undefined) params.append('available_only', available_only);
+    if (verified_only !== undefined) params.append('verified_only', verified_only);
+    if (max_hourly_rate) params.append('max_hourly_rate', max_hourly_rate);
+    if (search_text) params.append('search_text', search_text);
+    const qs = params.toString() ? `?${params.toString()}` : '';
+    return request(`/api/workers/search${qs}`, { token });
+  },
 
   // Buscar trabajos exprés con filtros
   searchExpressJobs: ({ trade_category_id, location_id, urgency, min_budget, max_budget, status = 'abierto', client_id } = {}, token) => {
@@ -134,12 +165,44 @@ export const api = {
   // Postulaciones a trabajos exprés
   getExpressJobApplications: (jobId, token) => request(`/api/workers/express-jobs/${jobId}/applications`, { token }),
   createExpressJobApplication: (applicationData, token) => request('/api/express_job_applications', { method: 'POST', body: applicationData, token }),
+  // Actualizar una postulación exprés (PATCH parcial)
+  updateExpressJobApplication: (id, applicationData, token) => request(`/api/express_job_applications/${id}`, { method: 'PATCH', body: applicationData, token }),
+  // Listar postulaciones exprés con paginación (para "Mis postulaciones exprés")
+  getExpressJobApplicationsPaged: (page = 1, pageSize = 100, token) => request(`/api/express_job_applications?page=${page}&pageSize=${pageSize}`, { token }),
+  // Obtener un anuncio exprés por ID
+  getExpressJobById: (id, token) => request(`/api/express_jobs/${id}`, { token }),
+
+  // ======== Notificaciones ========
+  listMyNotifications: (token) => request('/api/notifications/my', { token }),
+  markNotificationRead: (id, token) => request(`/api/notifications/${id}/read`, { method: 'PUT', token }),
+
+  // ======== Reseñas de trabajadores ========
+  // Obtener reseñas de un trabajador
+  getWorkerReviews: (workerId, token) => request(`/api/workers/${workerId}/reviews`, { token }),
+  // Crear una reseña para un trabajador
+  createWorkerReview: (reviewData, token) => request('/api/worker_reviews', { method: 'POST', body: reviewData, token }),
+
+  // ======== Reseñas genéricas (candidatos/empleadores) ========
+  // Crear reseña genérica vinculada a una postulación
+  createReview: (reviewData, token) => request('/api/reviews', { method: 'POST', body: reviewData, token }),
+  // Consultar postulaciones (para localizar job_application_id de un candidato)
+  // Incluye paginación para obtener suficientes resultados del backend
+  getJobApplications: ({ job_id, candidate_id, status, page = 1, pageSize = 200 } = {}, token) => {
+    const params = new URLSearchParams();
+    if (job_id) params.append('job_id', job_id);
+    if (candidate_id) params.append('candidate_id', candidate_id);
+    if (status) params.append('status', status);
+    if (page) params.append('page', page);
+    if (pageSize) params.append('pageSize', pageSize);
+    const qs = params.toString() ? `?${params.toString()}` : '';
+    return request(`/api/job_applications${qs}`, { token });
+  },
   updateExpressJobApplication: (id, applicationData, token) => request(`/api/express_job_applications/${id}`, { method: 'PUT', body: applicationData, token }),
   deleteExpressJobApplication: (id, token) => request(`/api/express_job_applications/${id}`, { method: 'DELETE', token }),
 
   // File upload endpoint
-  uploadFile: async (formData, token) => {
-    const response = await fetch(`${API_URL}/api/files/upload`, {
+  uploadFile: async (formData, token, type = 'figan') => {
+    const response = await fetch(`${API_URL}/api/files/upload?type=${encodeURIComponent(type)}`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -266,4 +329,35 @@ export const api = {
     body: { token: tokenValue, device: deviceInfo },
     token: jwt,
   }),
+  // Enviar push a un usuario (solo admin/super_admin)
+  sendPushToUser: (userId, title, body, data = {}, token) => request('/api/push/send', {
+    method: 'POST',
+    body: { user_id: userId, title, body, data },
+    token,
+  }),
+
+  // ======== Moderación (reportes y bloqueos) ========
+  reportUser: (reportedUserId, reason, token) => request('/api/moderation/report', {
+    method: 'POST',
+    body: { reported_user_id: reportedUserId, reason },
+    token
+  }),
+  blockUser: (userId, reason, token) => request(`/api/moderation/block/${userId}`, {
+    method: 'POST',
+    body: { reason },
+    token
+  }),
+  listDailyReports: (date, token) => request(`/api/moderation/reports/daily${date ? `?date=${encodeURIComponent(date)}` : ''}`, { token }),
+  listReports: (token) => request('/api/moderation/reports', { token }),
+  listBlocks: (token) => request('/api/moderation/blocks', { token }),
+  // Reportes de anuncios
+  reportAd: (adId, adType, reason, token) => request('/api/moderation/report-ad', {
+    method: 'POST',
+    body: { ad_id: adId, ad_type: adType, reason },
+    token
+  }),
+  listDailyAdReports: (date, token) => request(`/api/moderation/ad-reports/daily${date ? `?date=${encodeURIComponent(date)}` : ''}`, { token }),
+  listAdReports: (token) => request('/api/moderation/ad-reports', { token }),
+  // Utilidad: obtener usuario por ID para mostrar nombres en AdminReports
+  getUserById: (id, token) => request(`/api/users/${id}`, { token })
 };

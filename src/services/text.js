@@ -1,66 +1,37 @@
-// Text utilities for fixing mojibake and improving display
-export function fixMojibake(input) {
-  if (input == null) return input;
-  const s = String(input);
-  // Heuristic: only attempt decode if common mojibake markers exist
-  const hasMarkers = /Ã|Â|�/.test(s);
-  let out = s;
-  if (hasMarkers) {
-    try {
-      // Convert from mistaken Latin-1 to proper UTF-8
-      // escape -> percent-encode Latin-1 bytes; decodeURIComponent -> interpret as UTF-8
-      out = decodeURIComponent(escape(out));
-    } catch (_) {
-      // Fallback: keep original
-    }
+// Simple text normalization to fix common UTF-8/Latin-1 mojibake (e.g., "SofÃ" -> "Sof")
+export function normalizeText(input) {
+  if (!input || typeof input !== 'string') return input;
+  const s = input.trim();
+  if (!s) return s;
+  // Heuristic: if contains typical mojibake markers, try Latin-1 -> UTF-8 fix
+  const looksMojibake = /Ã|Â|¢|¤|¦|§|¨|©|ª|«|¬|®/u.test(s);
+  if (!looksMojibake) return s;
+
+  try {
+    const bytes = new Uint8Array(Array.from(s, ch => ch.charCodeAt(0) & 0xFF));
+    const decoded = new TextDecoder('utf-8').decode(bytes);
+    return decoded;
+  } catch (e) {
+    // Fallback: return original string
+    return s;
   }
-  // Cleanup common leftovers
-  out = out
-    .replace(/Â¿/g, '¿')
-    .replace(/Â¡/g, '¡')
-    .replace(/Â/g, '')
-    .replace(/Ã€/g, '€')
-    .replace(/Ã‚/g, '')
-    .replace(/Ã„/g, 'Ä')
-    .replace(/Ã–/g, 'Ö')
-    .replace(/Ãœ/g, 'Ü')
-    .replace(/Ã¤/g, 'ä')
-    .replace(/Ã¶/g, 'ö')
-    .replace(/Ã¼/g, 'ü')
-    .replace(/Ã±/g, 'ñ')
-    .replace(/Ã/g, 'Ñ')
-    .replace(/Ã¡/g, 'á')
-    .replace(/Ã©/g, 'é')
-    .replace(/Ã­/g, 'í')
-    .replace(/Ã³/g, 'ó')
-    .replace(/Ãº/g, 'ú')
-    .replace(/Ã/g, 'Á')
-    .replace(/Ã‰/g, 'É')
-    .replace(/Ã/g, 'Í')
-    .replace(/Ã“/g, 'Ó')
-    .replace(/Ãš/g, 'Ú')
-    .replace(/Ã§/g, 'ç')
-    .replace(/Ã/g, 'Ç')
-    .replace(/�/g, '');
-  return out;
 }
 
+// Convenience: normalize nullable strings safely (alias used across screens)
 export function normalizeTextSafe(input) {
-  const fixed = fixMojibake(input);
-  // Additional normalization (trim excessive whitespace)
-  return typeof fixed === 'string' ? fixed.replace(/[\s\u00A0]+/g, ' ').trim() : fixed;
+  return typeof input === 'string' ? normalizeText(input) : input;
 }
 
-// Human-friendly label for urgency values
-export function labelUrgency(value) {
-  if (!value) return '';
+// Back-compat alias if some files still import safeNormalize
+export const safeNormalize = normalizeTextSafe;
+
+// Label urgency helper used by Express job screens
+export function labelUrgency(urgency) {
   const map = {
-    'inmediato': 'Inmediato',
-    'hoy': 'Hoy',
-    'esta_semana': 'Esta semana',
-    'flexible': 'Flexible'
+    inmediato: 'Inmediato',
+    pronto: 'Pronto',
+    flexible: 'Flexible'
   };
-  if (map[value]) return map[value];
-  // Fallback: replace underscores and normalize
-  return normalizeTextSafe(String(value).replace(/_/g, ' '));
+  const key = (urgency || '').toString().toLowerCase();
+  return map[key] || normalizeTextSafe(urgency);
 }

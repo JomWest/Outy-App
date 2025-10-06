@@ -59,7 +59,8 @@ export default function ExpressJobFormScreen({ route, navigation }) {
         trade_category_id: tradeCategoryId,
         title: title.trim(),
         description: description.trim(),
-        location_id: locationId || null,
+        // Enviar undefined cuando no hay ubicación; evitar null que rompe validación
+        location_id: (locationId === null || locationId === undefined) ? undefined : locationId,
         address_details: addressDetails?.trim() || undefined,
         urgency: urgency || 'flexible',
         preferred_date: preferredDate || undefined,

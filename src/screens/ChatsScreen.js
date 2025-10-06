@@ -45,7 +45,74 @@ const getInitials = (text) => {
 };
 
 const formatTime = (time) => {
-  return time || '10:30 AM';
+  if (!time) return '';
+  const date = new Date(time);
+  if (isNaN(date.getTime())) return '';
+  // Mostrar solo hora y minutos del último mensaje
+  return date.toLocaleTimeString('es-ES', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true
+  });
+};
+
+// Detecta marcador especial de calificación de trabajo exprés
+const parseRateExpressJobToken = (text) => {
+  if (!text) return null;
+  const m = /\[\[RATE_EXPRESS_JOB:([^\]]+)\]\]/.exec(text);
+  return m ? m[1] : null;
+};
+
+// Inferir MIME por extensión si no viene en el token
+const inferMimeFromPath = (urlOrName) => {
+  if (!urlOrName) return undefined;
+  const lower = urlOrName.toLowerCase();
+  const ext = lower.split('?')[0].split('#')[0].split('.').pop();
+  switch (ext) {
+    case 'jpg':
+    case 'jpeg':
+      return 'image/jpeg';
+    case 'png':
+      return 'image/png';
+    case 'gif':
+      return 'image/gif';
+    case 'webp':
+      return 'image/webp';
+    case 'bmp':
+      return 'image/bmp';
+    case 'mp4':
+      return 'video/mp4';
+    case 'mov':
+      return 'video/quicktime';
+    case 'webm':
+      return 'video/webm';
+    case 'm4v':
+      return 'video/x-m4v';
+    case 'ogg':
+    case 'ogv':
+      return 'video/ogg';
+    case 'avi':
+      return 'video/x-msvideo';
+    case 'mkv':
+      return 'video/x-matroska';
+    case 'pdf':
+      return 'application/pdf';
+    default:
+      return undefined;
+  }
+};
+
+// Parse de token de archivo: [[FILE:url|name|mime]] o [[FILE:url|name]]
+const parseFileToken = (text) => {
+  if (!text) return null;
+  let m = /\[\[FILE:([^\|\]]+)\|([^\|\]]+)\|([^\]]+)\]\]/.exec(text);
+  if (m) return { url: m[1], name: m[2], mime: m[3] };
+  m = /\[\[FILE:([^\|\]]+)\|([^\]]+)\]\]/.exec(text);
+  if (m) {
+    const inferred = inferMimeFromPath(m[1]) || inferMimeFromPath(m[2]) || 'application/octet-stream';
+    return { url: m[1], name: m[2], mime: inferred };
+  }
+  return null;
 };
 
 const highlightMatch = (text, query) => {
@@ -202,11 +269,17 @@ export default function ChatsScreen({ navigation }) {
     setConversations(prevConversations => {
       return prevConversations.map(conv => {
         if (conv.conversation_id === message.conversation_id) {
+          // Si el chat está abierto, no incrementar unread_count
+          const isActive = (typeof socketService.getActiveConversationId === 'function')
+            ? socketService.getActiveConversationId() === message.conversation_id
+            : false;
           return {
             ...conv,
             last_message: message.message_text,
             last_message_at: message.created_at,
-            unread_count: message.sender_id !== user.id ? (conv.unread_count || 0) + 1 : conv.unread_count
+            unread_count: (!isActive && message.sender_id !== user.id)
+              ? (conv.unread_count || 0) + 1
+              : conv.unread_count
           };
         }
         return conv;
@@ -371,6 +444,31 @@ export default function ChatsScreen({ navigation }) {
     }
   };
 
+  const confirmDeleteConversation = (conversationId) => {
+    // Simple confirm using alert; in web it maps to window.confirm
+    const doDelete = () => handleDeleteConversation(conversationId);
+    try {
+      // Try native confirm pattern
+      if (typeof window !== 'undefined' && window.confirm) {
+        if (window.confirm('¿Eliminar esta conversación? Se borrarán todos los mensajes.')) {
+          doDelete();
+        }
+        return;
+      }
+    } catch {}
+    // Fallback
+    doDelete();
+  };
+
+  const handleDeleteConversation = async (conversationId) => {
+    try {
+      await api.deleteConversation(conversationId, token);
+      setConversations(prev => prev.filter(c => c.conversation_id !== conversationId));
+    } catch (e) {
+      console.log('Delete conversation error', e?.message || e);
+    }
+  };
+
   const openContactsModal = async () => {
     setContactsModalVisible(true);
     await loadContactsList();
@@ -412,6 +510,7 @@ export default function ChatsScreen({ navigation }) {
           userName: name,
           userRole: conversation.other_user_role
         })}
+        onLongPress={() => confirmDeleteConversation(conversation.conversation_id)}
         activeOpacity={0.7}
       >
         <View style={{
@@ -523,15 +622,75 @@ export default function ChatsScreen({ navigation }) {
               alignItems: 'center',
               justifyContent: 'space-between'
             }}>
-              <Text style={{
-                fontSize: 14,
-                color: conversation.unread_count > 0 ? '#1F2937' : '#6B7280',
-                fontWeight: conversation.unread_count > 0 ? '600' : 'normal',
-                flex: 1
-              }} numberOfLines={1}>
-                {conversation.last_message || 'Sin mensajes'}
-              </Text>
-              
+              {(() => {
+                const fileToken = parseFileToken(conversation.last_message);
+                const hasRateToken = parseRateExpressJobToken(conversation.last_message);
+                const cleanedText = hasRateToken
+                  ? (conversation.last_message || '').replace(/\[\[RATE_EXPRESS_JOB:[^\]]+\]\]/, '').trim()
+                  : (conversation.last_message || '');
+
+                if (fileToken) {
+                  if (fileToken.mime?.startsWith('image/')) {
+                    return (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                        <Image 
+                          source={{ uri: encodeURI(fileToken.url) }} 
+                          style={{ width: 28, height: 28, borderRadius: 6, marginRight: 8 }}
+                        />
+                        <Text style={{
+                          fontSize: 14,
+                          color: conversation.unread_count > 0 ? '#1F2937' : '#6B7280',
+                          fontWeight: conversation.unread_count > 0 ? '600' : 'normal',
+                          flex: 1
+                        }} numberOfLines={1}>
+                          {fileToken.name}
+                        </Text>
+                      </View>
+                    );
+                  }
+                  if (fileToken.mime?.startsWith('video/')) {
+                    return (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                        <Ionicons name="videocam" size={18} color={colors.purpleStart} style={{ marginRight: 8 }} />
+                        <Text style={{
+                          fontSize: 14,
+                          color: conversation.unread_count > 0 ? '#1F2937' : '#6B7280',
+                          fontWeight: conversation.unread_count > 0 ? '600' : 'normal',
+                          flex: 1
+                        }} numberOfLines={1}>
+                          Video: {fileToken.name}
+                        </Text>
+                      </View>
+                    );
+                  }
+                  // Documentos y otros tipos
+                  return (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                      <Ionicons name="document-outline" size={18} color="#6B7280" style={{ marginRight: 8 }} />
+                      <Text style={{
+                        fontSize: 14,
+                        color: conversation.unread_count > 0 ? '#1F2937' : '#6B7280',
+                        fontWeight: conversation.unread_count > 0 ? '600' : 'normal',
+                        flex: 1
+                      }} numberOfLines={1}>
+                        {fileToken.name}
+                      </Text>
+                    </View>
+                  );
+                }
+
+                return (
+                  <Text style={{
+                    fontSize: 14,
+                    color: conversation.unread_count > 0 ? '#1F2937' : '#6B7280',
+                    fontWeight: conversation.unread_count > 0 ? '600' : 'normal',
+                    flex: 1
+                  }} numberOfLines={1}>
+                    {cleanedText || 'Sin mensajes'}
+                  </Text>
+                );
+              })()}
+
               {conversation.unread_count > 0 && (
                 <View style={{
                   backgroundColor: colors.purpleStart,
